@@ -1,122 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Invoice with JS</title>
+  <title>Quiz App</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-
-<body class="bg-gray-100 flex items-center justify-center min-h-screen p-6">
-  <div class="bg-white border border-gray-300 rounded-lg shadow-lg p-8 max-w-4xl w-full">
-    <header class="mb-8 text-center">
-      <h1 class="text-3xl font-bold mb-2">Invoice</h1>
-      <p class="text-gray-600">Invoice #001 | Date: 2025-05-27</p>
-    </header>
-
-    <section class="grid grid-cols-2 gap-8 mb-8">
-      <div>
-        <h2 class="font-semibold mb-2">Bill To:</h2>
-        <p>Harini T</p>
-        <p>Chennai, India</p>
-        <p>harini@example.com</p>
-      </div>
-      <div class="text-right">
-        <h2 class="font-semibold mb-2">From:</h2>
-        <p>Awesome Company</p>
-        <p>123 Business St.</p>
-        <p>contact@awesome.com</p>
-      </div>
-    </section>
-
-    <table class="w-full border-collapse mb-8">
-      <thead>
-        <tr class="bg-gray-200">
-          <th class="border border-gray-300 p-3 text-left">Description</th>
-          <th class="border border-gray-300 p-3 text-right">Quantity</th>
-          <th class="border border-gray-300 p-3 text-right">Price</th>
-          <th class="border border-gray-300 p-3 text-right">Amount</th>
-        </tr>
-      </thead>
-      <tbody id="invoice-items">
-        <tr class="border-b border-gray-300">
-          <td class="p-3">Product 1</td>
-          <td class="p-3 text-right">
-            <input type="number" min="0" value="2" class="quantity input-field w-16 text-right border rounded px-2" />
-          </td>
-          <td class="p-3 text-right">
-            <input type="number" min="0" value="50" class="price input-field w-20 text-right border rounded px-2" />
-          </td>
-          <td class="p-3 text-right amount">$100.00</td>
-        </tr>
-        <tr class="border-b border-gray-300">
-          <td class="p-3">Product 2</td>
-          <td class="p-3 text-right">
-            <input type="number" min="0" value="1" class="quantity input-field w-16 text-right border rounded px-2" />
-          </td>
-          <td class="p-3 text-right">
-            <input type="number" min="0" value="75" class="price input-field w-20 text-right border rounded px-2" />
-          </td>
-          <td class="p-3 text-right amount">$75.00</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="max-w-xs ml-auto space-y-2 text-right">
-      <div class="flex justify-between">
-        <span class="font-semibold">Subtotal:</span>
-        <span id="subtotal">$175.00</span>
-      </div>
-      <div class="flex justify-between">
-        <span class="font-semibold">Tax (10%):</span>
-        <span id="tax">$17.50</span>
-      </div>
-      <div class="flex justify-between text-xl font-bold border-t border-gray-300 pt-2">
-        <span>Total:</span>
-        <span id="total">$192.50</span>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    function formatCurrency(value) {
-      return `$${value.toFixed(2)}`;
-    }
-
-    function calculateInvoice() {
-      const rows = document.querySelectorAll('#invoice-items tr');
-      let subtotal = 0;
-
-      rows.forEach(row => {
-        const qtyInput = row.querySelector('.quantity');
-        const priceInput = row.querySelector('.price');
-        const amountCell = row.querySelector('.amount');
-
-        const qty = parseFloat(qtyInput.value) || 0;
-        const price = parseFloat(priceInput.value) || 0;
-        const amount = qty * price;
-
-        amountCell.textContent = formatCurrency(amount);
-        subtotal += amount;
-      });
-
-      const tax = subtotal * 0.10;
-      const total = subtotal + tax;
-
-      document.getElementById('subtotal').textContent = formatCurrency(subtotal);
-      document.getElementById('tax').textContent = formatCurrency(tax);
-      document.getElementById('total').textContent = formatCurrency(total);
-    }
-
-    // Attach event listeners to inputs to recalculate totals on change
-    document.querySelectorAll('.quantity, .price').forEach(input => {
-      input.addEventListener('input', calculateInvoice);
-    });
-
-    // Initial calculation
-    calculateInvoice();
-  </script>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <div id="app" class="p-6 bg-white rounded-xl shadow-md w-full max-w-md"></div>
+  <script src="script.js"></script>
 </body>
-
 </html>
