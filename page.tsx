@@ -1,10 +1,18 @@
-import { LoginForm } from "@/components/login-form";
+import TTSButton from '@/components/TTSButton';
 
-export default function Page() {
+export default function DashboardPage() {
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <LoginForm />
+    <div className="min-h-screen bg-black text-white p-6">
+      
+
+      {/* TTS Button */}
+      <TTSButton />
+
+      {/* You can add your participants table or dashboard content below */}
+      {/* Example Placeholder */}
+      <div className="mt-10 text-gray-400">
+        
+        
       </div>
     </div>
   );
