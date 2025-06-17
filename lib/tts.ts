@@ -6,11 +6,9 @@ const elevenlabs = new ElevenLabsClient({
 });
 
 export async function getSpeechBuffer(text: string) {
-  const audio = await elevenlabs.textToSpeech.convert('JBFqnCBsd6RMkjVDRZzb', {
+  return await elevenlabs.textToSpeech.convert('JBFqnCBsd6RMkjVDRZzb', {
     text,
     modelId: 'eleven_multilingual_v2',
     outputFormat: 'mp3_44100_128',
   });
-
-  return audio;
 }

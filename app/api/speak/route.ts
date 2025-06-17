@@ -1,6 +1,8 @@
 // app/api/speak/route.ts
-import { getSpeechBuffer } from '@/lib/tts';
 import { NextResponse } from 'next/server';
+import { getSpeechBuffer } from '@/lib/tts';
+import { Readable } from 'stream';
+import { Buffer } from 'buffer';
 
 export async function POST(req: Request) {
   try {
@@ -10,17 +12,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Text is required' }, { status: 400 });
     }
 
-    const readableStream = await getSpeechBuffer(text);
-    const readableStreamWeb = new ReadableStream({
-      async start(controller) {
-        for await (const chunk of readableStream) {
-          controller.enqueue(chunk);
-        }
-        controller.close();
-      }
-    });
+    const audioBuffer = await getSpeechBuffer(text);
+    const chunks: Buffer[] = [];
+    for await (const chunk of audioBuffer) {
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks);
 
-    return new NextResponse(readableStreamWeb, {
+    return new Response(buffer, {
+      status: 200,
       headers: {
         'Content-Type': 'audio/mpeg',
       },
