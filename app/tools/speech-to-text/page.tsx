@@ -9,7 +9,7 @@ export default function SpeechToTextPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const audioBlobRef = useRef<Blob | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null); // NEW
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleStartRecording = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -48,9 +48,7 @@ export default function SpeechToTextPage() {
     setAudioURL(null);
     setTranscription('');
     setShowText(false);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''; // ✅ Clears file input
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleTranscribe = async () => {
@@ -83,72 +81,79 @@ export default function SpeechToTextPage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-between min-h-screen bg-gray-100 py-10 px-4 overflow-hidden">
-      <header className="w-full mb-12">
-        <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg shadow-lg overflow-hidden">
-          <div className="p-6 text-white text-center">
-            <h1 className="text-3xl font-bold mb-2">Speech to Text</h1>
-            <p className="text-gray-200 text-sm">Convert your voice into text instantly</p>
+    <div className="flex flex-col items-center min-h-screen bg-white px-4 py-10 text-black">
+      {/* Header */}
+      <div className="w-full max-w-3xl text-center mb-10">
+        <h1 className="text-4xl font-extrabold">Speech to Text</h1>
+        <p className="text-gray-500 mt-2">Convert your voice into text using ElevenLabs style UI</p>
+      </div>
+
+      {/* Card */}
+      <div className="w-full max-w-2xl bg-white border border-gray-200 rounded-2xl shadow-lg p-8 space-y-6 transition-all duration-300">
+        {/* Recording Section */}
+        {!isRecording ? (
+          <button
+            onClick={handleStartRecording}
+            className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
+          >
+            🎙️ Start Recording
+          </button>
+        ) : (
+          <div className="flex flex-col gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 bg-red-600 rounded-full animate-ping"></span>
+              <span className="text-red-600 font-medium">Recording...</span>
+            </div>
+            <button
+              onClick={handleStopRecording}
+              className="w-full py-4 px-6 bg-red-600 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
+            >
+              🛑 Stop Recording
+            </button>
           </div>
-        </div>
-      </header>
+        )}
 
-      <div className="flex flex-col items-center gap-6 w-full max-w-2xl">
-        <button
-          onClick={isRecording ? handleStopRecording : handleStartRecording}
-          className={`px-6 py-3 font-medium rounded-lg border-2 border-transparent transition-all duration-200 ${
-            isRecording ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
-          }`}>
-          {isRecording ? 'Stop Recording' : 'Start Recording'}
-        </button>
-
-        <div className="border-2 border-gray-300 rounded-lg p-2 w-full">
+        {/* File Upload */}
+        <div>
+          <label className="block text-gray-700 mb-2 font-medium">Or Upload Audio File</label>
           <input
             ref={fileInputRef}
             type="file"
             accept="audio/*"
             onChange={handleFileChange}
-            className="text-black w-full"
+            className="block w-full px-4 py-3 text-sm text-gray-800 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-gray-100 file:text-blue-700 hover:file:bg-gray-200 border border-gray-300 rounded-lg"
           />
         </div>
 
+        {/* Audio Preview */}
         {audioURL && (
-          <div className="border-2 border-gray-300 rounded-lg p-4 w-full">
+          <div className="bg-gray-100 p-4 rounded-lg border border-gray-200">
             <audio controls src={audioURL} className="w-full mb-2" />
             <button
               onClick={handleDeleteAudio}
-              className="text-sm text-red-600 underline hover:text-red-700"
+              className="text-red-500 hover:underline text-sm font-medium"
             >
-              Delete Audio
+              🗑️ Delete Audio
             </button>
           </div>
         )}
 
+        {/* Transcribe Button */}
         <button
           onClick={handleTranscribe}
-          className="px-6 py-3 bg-blue-600 text-black rounded-lg border-2 border-transparent hover:border-blue-700 transition-all duration-200 hover:bg-blue-700"
+          className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
         >
-          Show Transcription
+          📄 Show Transcription
         </button>
 
+        {/* Transcription Output */}
         {showText && transcription && (
-          <div className="mt-6 p-4 bg-white text-black rounded-lg border-2 border-gray-300 w-full">
-            <p className="text-center">
-              {transcription}
-            </p>
+          <div className="bg-gray-50 p-4 rounded-lg border border-gray-300">
+            <h3 className="text-lg font-semibold mb-2 text-center text-gray-800">Transcribed Text</h3>
+            <p className="text-center whitespace-pre-line text-black">{transcription}</p>
           </div>
         )}
       </div>
-
-      <footer className="w-full mt-auto">
-        <div className="bg-gradient-to-r from-gray-100 to-white rounded-t-lg shadow-lg">
-          <div className="py-8 px-6 border-t-2 border-gray-300 text-center">
-            <a href="/dashboard" className="inline-block px-8 py-3 rounded-full border-2 border-blue-600 bg-blue-100 hover:bg-blue-200 hover:border-blue-700 transition-all duration-200 text-blue-600 font-semibold hover:text-blue-800">
-              Go to Text-to-Speech
-            </a>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
