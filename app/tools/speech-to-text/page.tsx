@@ -1,15 +1,19 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
+import { createClient } from '@/lib/supabase'; // adjust path if needed
+const supabase = createClient();
 
 export default function SpeechToTextPage() {
   const [audioURL, setAudioURL] = useState<string | null>(null);
   const [transcription, setTranscription] = useState('');
   const [showText, setShowText] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioBlobRef = useRef<Blob | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
 
   const handleStartRecording = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -19,8 +23,14 @@ export default function SpeechToTextPage() {
     recorder.ondataavailable = (e) => chunks.push(e.data);
     recorder.onstop = () => {
       const blob = new Blob(chunks, { type: 'audio/webm' });
+      if (blob.size > 60000) {
+        alert('Recording too large (max 60KB). Please record a shorter clip.');
+        return;
+      }
       audioBlobRef.current = blob;
       setAudioURL(URL.createObjectURL(blob));
+      setFileName('recording.webm');
+      setIsRecording(false);
     };
 
     mediaRecorderRef.current = recorder;
@@ -30,7 +40,6 @@ export default function SpeechToTextPage() {
 
   const handleStopRecording = () => {
     mediaRecorderRef.current?.stop();
-    setIsRecording(false);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,6 +47,7 @@ export default function SpeechToTextPage() {
     if (file && file.size <= 60000) {
       audioBlobRef.current = file;
       setAudioURL(URL.createObjectURL(file));
+      setFileName(file.name);
     } else {
       alert('File must be less than 60KB');
     }
@@ -48,6 +58,7 @@ export default function SpeechToTextPage() {
     setAudioURL(null);
     setTranscription('');
     setShowText(false);
+    setFileName(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -56,6 +67,9 @@ export default function SpeechToTextPage() {
       alert('No audio selected or recorded.');
       return;
     }
+
+    setIsLoading(true);
+    setShowText(false);
 
     const formData = new FormData();
     formData.append('audio', audioBlobRef.current);
@@ -74,46 +88,57 @@ export default function SpeechToTextPage() {
       const data = await res.json();
       setTranscription(data.text);
       setShowText(true);
+
+      const { error } = await supabase.from('transcriptions').insert([
+        {
+          file_name: fileName || 'unknown',
+          transcription: data.text,
+        },
+      ]);
+      if (error) {
+        console.error('Supabase insert error:', error);
+        alert('Failed to save transcription');
+      }
     } catch (err) {
       console.error('Transcription error:', err);
       alert(err instanceof Error ? err.message : 'Transcription failed.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div className="flex flex-col items-center min-h-screen bg-white px-4 py-10 text-black">
-      {/* Header */}
-      <div className="w-full max-w-3xl text-center mb-10">
-        <h1 className="text-4xl font-extrabold">Speech to Text</h1>
-        <p className="text-gray-500 mt-2">Convert your voice into text using ElevenLabs style UI</p>
-      </div>
+      <header className="w-full mb-6">
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg shadow-lg overflow-hidden">
+          <div className="p-5 text-white text-center">
+            <h1 className="text-4xl font-bold mb-1">Speech to Text</h1>
+            <p className="text-gray-200 text-sm">Convert your speech into text instantly</p>
+          </div>
+        </div>
+      </header>
 
-      {/* Card */}
-      <div className="w-full max-w-2xl bg-white border border-gray-200 rounded-2xl shadow-lg p-8 space-y-6 transition-all duration-300">
-        {/* Recording Section */}
+      <div className="w-full max-w-2xl bg-white border border-gray-200 rounded-2xl shadow-lg p-8 space-y-6">
+
         {!isRecording ? (
           <button
             onClick={handleStartRecording}
             className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
           >
-            🎙️ Start Recording
+            🎙️ Start Speaking
           </button>
         ) : (
-          <div className="flex flex-col gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 bg-red-600 rounded-full animate-ping"></span>
-              <span className="text-red-600 font-medium">Recording...</span>
-            </div>
+          <>
+            <div className="text-red-500 font-medium text-center">Recording…</div>
             <button
               onClick={handleStopRecording}
               className="w-full py-4 px-6 bg-red-600 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
             >
-              🛑 Stop Recording
+              🛑 Stop 
             </button>
-          </div>
+          </>
         )}
 
-        {/* File Upload */}
         <div>
           <label className="block text-gray-700 mb-2 font-medium">Or Upload Audio File</label>
           <input
@@ -125,20 +150,19 @@ export default function SpeechToTextPage() {
           />
         </div>
 
-        {/* Audio Preview */}
         {audioURL && (
-          <div className="bg-gray-100 p-4 rounded-lg border border-gray-200">
-            <audio controls src={audioURL} className="w-full mb-2" />
+          <div className="bg-gray-100 p-1.5 rounded-lg border border-gray-200">
+            <audio controls src={audioURL} className="w-full h-8 mb-0.5" />
+            <div className="text-xs text-gray-600 mb-0.5">{fileName}</div>
             <button
               onClick={handleDeleteAudio}
-              className="text-red-500 hover:underline text-sm font-medium"
+              className="text-red-500 hover:underline text-xs font-medium"
             >
-              🗑️ Delete Audio
+              🗑️ Delete
             </button>
           </div>
         )}
 
-        {/* Transcribe Button */}
         <button
           onClick={handleTranscribe}
           className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
@@ -146,11 +170,12 @@ export default function SpeechToTextPage() {
           📄 Show Transcription
         </button>
 
-        {/* Transcription Output */}
+        {isLoading && <div className="text-center text-sm text-gray-500">Transcribing...</div>}
+
         {showText && transcription && (
           <div className="bg-gray-50 p-4 rounded-lg border border-gray-300">
-            <h3 className="text-lg font-semibold mb-2 text-center text-gray-800">Transcribed Text</h3>
-            <p className="text-center whitespace-pre-line text-black">{transcription}</p>
+            <div className="text-sm text-gray-500 mb-1">{fileName}</div>
+            <p className="whitespace-pre-line text-black">{transcription}</p>
           </div>
         )}
       </div>

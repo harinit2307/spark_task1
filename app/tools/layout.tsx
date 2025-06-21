@@ -40,21 +40,23 @@ export default function ToolLayout({ children }: { children: React.ReactNode }) 
      
 
 {/* Horizontal Scrollable Tabs */}
+{/* Horizontal Scrollable Tabs */}
 <div className="overflow-x-auto bg-gradient-to-r from-blue-600 to-purple-600 py-4 px-6 shadow-inner">
-  <div className="flex gap-4">
+  <div className="flex gap-6 min-w-[120%]">
     {routes
       .filter(route => route.path !== currentPath)
       .map(route => (
         <Link
           key={route.path}
           href={route.path}
-          className="min-w-[180px] text-center whitespace-nowrap px-6 py-3 rounded-full bg-white text-blue-700 font-medium text-lg shadow-md hover:bg-gray-100 transition-all duration-200 hover:scale-[1.03]"
+          className="min-w-[220px] text-center whitespace-nowrap px-8 py-4 rounded-full bg-white text-blue-700 font-medium text-lg shadow-md hover:bg-gray-100 transition-all duration-200 hover:scale-[1.03]"
         >
           {route.label} →
         </Link>
       ))}
   </div>
 </div>
+
 
 
       {/* Main Content */}
