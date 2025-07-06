@@ -30,5 +30,4 @@ export async function POST(req: NextRequest) {
     console.error('Transcription error:', err);
     return NextResponse.json({ error: 'Failed to transcribe' }, { status: 500 });
   }
-  
 }

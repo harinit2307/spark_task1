@@ -1,32 +1,31 @@
-// app/api/speak/route.ts
 import { NextResponse } from 'next/server';
 import { getSpeechBuffer } from '@/lib/tts';
-import { Readable } from 'stream';
-import { Buffer } from 'buffer';
+import { translate } from '@vitalets/google-translate-api';
 
 export async function POST(req: Request) {
-  try {
-    const { text } = await req.json();
+  const { text, to } = await req.json();
+  if (!text) return NextResponse.json({ error: 'Text required' }, { status: 400 });
 
-    if (!text) {
-      return NextResponse.json({ error: 'Text is required' }, { status: 400 });
-    }
+  // 1. Translate first
+  const { text: translated } = await translate(text, { to: to || 'en' });
 
-    const audioBuffer = await getSpeechBuffer(text);
-    const chunks: Buffer[] = [];
-    for await (const chunk of audioBuffer) {
-      chunks.push(chunk);
-    }
-    const buffer = Buffer.concat(chunks);
+  // 2. Generate speech on the translated text
+  const audioBuffer = await getSpeechBuffer(translated);
+  const buffer = await streamToBuffer(audioBuffer);
 
-    return new Response(buffer, {
-      status: 200,
-      headers: {
-        'Content-Type': 'audio/mpeg',
-      },
-    });
-  } catch (err) {
-    console.error('TTS Error:', err);
-    return NextResponse.json({ error: 'Failed to generate speech' }, { status: 500 });
+  return new Response(buffer, {
+    status: 200,
+    headers: { 'Content-Type': 'audio/mpeg' },
+  });
+}
+
+async function streamToBuffer(stream: ReadableStream<Uint8Array>) {
+  const chunks: Uint8Array[] = [];
+  const reader = stream.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
   }
+  return Buffer.concat(chunks);
 }
