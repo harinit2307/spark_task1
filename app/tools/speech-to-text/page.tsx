@@ -1,10 +1,9 @@
-// app/tools/speech-to-text/page.tsx
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
 
 interface HistoryItem {
-  id: string; // UUID for matching with IndexedDB audio
+  audioBase64: string;
   text: string;
 }
 
@@ -17,76 +16,59 @@ export default function SpeechToTextPage() {
   const audioBlobRef = useRef<Blob | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [showHistory, setShowHistory] = useState(false);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [audioURLs, setAudioURLs] = useState<(string | null)[]>([]);
   const audioRefs = useRef<HTMLAudioElement[]>([]);
 
-  // --- IndexedDB Setup ---
-  const DB_NAME = 'speech-db';
-  const STORE_NAME = 'audio-store';
+  // ✅ LocalStorage-based lazy initialization
+  const [history, setHistory] = useState<HistoryItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('transcriptionHistory');
+        return saved ? JSON.parse(saved) : [];
+      } catch (e) {
+        console.error('Failed to parse transcriptionHistory:', e);
+        return [];
+      }
+    }
+    return [];
+  });
 
-  function openDB(): Promise<IDBDatabase> {
+  const blobToBase64 = (blob: Blob): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, 1);
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME);
-        }
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
     });
-  }
+  };
 
-  async function saveAudioToIndexedDB(id: string, blob: Blob) {
-    const db = await openDB();
-    return new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put(blob, id);
-      
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
-    });
-  }
-
-  async function getAudioFromIndexedDB(id: string): Promise<string | null> {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const request = tx.objectStore(STORE_NAME).get(id);
-    return new Promise((resolve, reject) => {
-      request.onsuccess = () => {
-        const result = request.result;
-        if (result) {
-          resolve(URL.createObjectURL(result as Blob));
-        } else {
-          resolve(null);
-        }
-      };
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  const loadHistory = async () => {
-    const saved = localStorage.getItem('transcriptionHistory');
-    if (saved) {
-      const parsed: HistoryItem[] = JSON.parse(saved);
-      setHistory(parsed);
-
-      const urls: (string | null)[] = await Promise.all(
-        parsed.map((item) => getAudioFromIndexedDB(item.id))
-      );
-      setAudioURLs(urls);
+  const base64ToBlobURL = (base64: string): string | null => {
+    try {
+      if (!base64 || typeof base64 !== 'string' || !base64.includes(',')) return null;
+      const [meta, content] = base64.split(',');
+      const mime = meta.match(/:(.*?);/)?.[1];
+      const byteString = atob(content);
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      const blob = new Blob([ab], { type: mime || 'audio/webm' });
+      return URL.createObjectURL(blob);
+    } catch (e) {
+      console.error('Invalid base64 audio format:', base64);
+      return null;
     }
   };
 
+  // ✅ Save to localStorage whenever history changes
   useEffect(() => {
-    loadHistory();
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('transcriptionHistory', JSON.stringify(history));
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('transcriptionHistory', JSON.stringify(history));
+      } catch (err) {
+        console.error('Failed to save transcription history:', err);
+      }
+    }
   }, [history]);
 
   const handleStartRecording = async () => {
@@ -154,11 +136,13 @@ export default function SpeechToTextPage() {
       setTranscription(data.text);
       setShowText(true);
 
-      const id = crypto.randomUUID();
-      await saveAudioToIndexedDB(id, audioBlobRef.current);
-      const url = URL.createObjectURL(audioBlobRef.current);
-      setAudioURLs((prev) => [...prev, url]);
-      setHistory((prev) => [...prev, { id, text: data.text }]);
+      const base64 = await blobToBase64(audioBlobRef.current);
+
+      if (base64.length < 1024 * 1024) {
+        setHistory((prev) => [...prev, { audioBase64: base64, text: data.text }]);
+      } else {
+        alert('Audio is too large to save in history.');
+      }
     } catch (err) {
       console.error('Transcription error:', err);
       alert(err instanceof Error ? err.message : 'Transcription failed.');
@@ -166,63 +150,72 @@ export default function SpeechToTextPage() {
   };
 
   const toggleHistory = () => setShowHistory((prev) => !prev);
-
   const deleteHistoryItem = (index: number) => {
-    const item = history[index];
-    openDB().then((db) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).delete(item.id);
-      tx.oncomplete = () => {
-        setHistory((prev) => prev.filter((_, i) => i !== index));
-        setAudioURLs((prev) => prev.filter((_, i) => i !== index));
-      };
-    });
+    setHistory((prev) => prev.filter((_, i) => i !== index));
   };
-
   const playAudio = (index: number) => {
-    const audioSrc = audioURLs[index];
-    if (audioSrc && audioRefs.current[index]) {
-      audioRefs.current[index].src = audioSrc;
-      audioRefs.current[index].play();
-    }
+    audioRefs.current[index]?.play();
   };
 
   return (
     <div className="flex min-h-screen bg-black text-white">
+      {/* Sidebar */}
       {showHistory && (
         <div className="w-72 border-r border-gray-800 p-4 overflow-y-auto bg-[#111]">
-          <h2 className="text-xl font-semibold mb-6 border-b pb-2 border-gray-700">🗂️ Transcription History</h2>
+          <h2 className="text-xl font-semibold mb-6 border-b pb-2 border-gray-700">
+            🗂️ Transcription History
+          </h2>
           {history.length === 0 ? (
             <p className="text-gray-500 text-sm">No past transcriptions.</p>
           ) : (
-            history.map((item, index) => (
-              <div key={item.id} className="mb-6 bg-[#1a1a1a] p-3 rounded-lg border border-gray-700 shadow-sm">
-                <div className="flex justify-between items-center mb-2">
-                  <button
-                    onClick={() => playAudio(index)}
-                    className="text-white hover:scale-110 transition text-xl"
-                    title="Play Audio"
-                  >
-                    🔊
-                  </button>
-                  <button
-                    onClick={() => deleteHistoryItem(index)}
-                    className="text-red-400 hover:underline text-xs font-medium"
-                  >
-                    🗑️ Remove
-                  </button>
+            history.map((item, index) => {
+              const audioSrc = base64ToBlobURL(item.audioBase64);
+              return (
+                <div
+                  key={index}
+                  className="mb-6 bg-[#1a1a1a] p-3 rounded-lg border border-gray-700 shadow-sm"
+                >
+                  <div className="flex justify-between items-center mb-2">
+                    <button
+                      onClick={() => playAudio(index)}
+                      className="text-white hover:scale-110 transition text-xl"
+                      title="Play Audio"
+                      disabled={!audioSrc}
+                    >
+                      🔊
+                    </button>
+                    <button
+                      onClick={() => deleteHistoryItem(index)}
+                      className="text-red-400 hover:underline text-xs font-medium"
+                    >
+                      🗑️ Remove
+                    </button>
+                  </div>
+                  {audioSrc && (
+                    <audio
+                      ref={(el) => {
+                        if (el) audioRefs.current[index] = el;
+                      }}
+                      src={audioSrc}
+                      preload="auto"
+                    />
+                  )}
+                  <p className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
+                    {item.text}
+                  </p>
                 </div>
-                <audio ref={(el) => { if (el) audioRefs.current[index] = el }} hidden preload="auto" />
-                <p className="text-sm text-gray-300 whitespace-pre-wrap font-mono">{item.text}</p>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
 
+      {/* Main Content */}
       <div className="flex-1 flex flex-col items-center px-4 py-10">
         <div className="self-start mb-4">
-          <button onClick={toggleHistory} className="text-2xl font-bold text-gray-400 px-3 py-1">⋮</button>
+          <button onClick={toggleHistory} className="text-2xl font-bold text-gray-400 px-3 py-1">
+            ⋮
+          </button>
         </div>
 
         <div className="w-full max-w-3xl text-center mb-10">
@@ -236,19 +229,19 @@ export default function SpeechToTextPage() {
               onClick={handleStartRecording}
               className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
             >
-              🎙️ Start Recording
+              🎙️ Start Speaking
             </button>
           ) : (
             <div className="flex flex-col gap-4 items-center">
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 bg-red-600 rounded-full animate-ping"></span>
-                <span className="text-red-500 font-medium">Recording...</span>
+                <span className="text-red-500 font-medium">Speaking...</span>
               </div>
               <button
                 onClick={handleStopRecording}
                 className="w-full py-4 px-6 bg-red-600 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
               >
-                🛑 Stop Recording
+                🛑 Stop Speaking
               </button>
             </div>
           )}

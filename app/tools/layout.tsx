@@ -7,11 +7,7 @@ const routes = [
   { label: 'Speech to Text', path: '/tools/speech-to-text' },
   { label: 'Text to Speech', path: '/tools/dashboard' },
   { label: 'Voice cloning', path: '/tools/voice-cloning' },
-  { label: 'Language', path: '/tools/language' },
-  { label: 'Voice', path: '/tools/voice' },
-  { label: 'Theme', path: '/tools/theme' },
-  { label: 'About', path: '/tools/about' },
-  { label: 'Help', path: '/tools/help' },
+  { label: 'Conversation AI', path: '/tools/conversational AI' },
 ];
 
 export default function ToolLayout({ children }: { children: React.ReactNode }) {
@@ -20,7 +16,6 @@ export default function ToolLayout({ children }: { children: React.ReactNode }) 
   const currentPath = pathname?.split('?')[0].replace(/\/$/, '');
 
   const handleLogout = () => {
-    // You can also add Supabase or auth cleanup logic here
     router.push('/auth/login');
   };
 
@@ -37,27 +32,22 @@ export default function ToolLayout({ children }: { children: React.ReactNode }) 
         </button>
       </div>
 
-     
-
-{/* Horizontal Scrollable Tabs */}
-{/* Horizontal Scrollable Tabs */}
-<div className="overflow-x-auto bg-gradient-to-r from-blue-600 to-purple-600 py-4 px-6 shadow-inner">
-  <div className="flex gap-6 min-w-[120%]">
-    {routes
-      .filter(route => route.path !== currentPath)
-      .map(route => (
-        <Link
-          key={route.path}
-          href={route.path}
-          className="min-w-[220px] text-center whitespace-nowrap px-8 py-4 rounded-full bg-white text-blue-700 font-medium text-lg shadow-md hover:bg-gray-100 transition-all duration-200 hover:scale-[1.03]"
-        >
-          {route.label} →
-        </Link>
-      ))}
-  </div>
-</div>
-
-
+      {/* Scrollable Tabs with Increased Button Length */}
+      <div className="overflow-x-auto bg-gradient-to-r from-blue-600 to-purple-600 py-6 px-6 shadow-inner">
+        <div className="flex gap-32 min-w-[160%] justify-start">
+          {routes
+            .filter(route => route.path !== currentPath)
+            .map(route => (
+              <Link
+                key={route.path}
+                href={route.path}
+                className="min-w-[300px] text-center whitespace-nowrap px-6 py-4 rounded-full bg-white text-blue-700 font-medium text-lg shadow-md hover:bg-gray-100 transition-all duration-200 hover:scale-[1.03]"
+              >
+                {route.label} →
+              </Link>
+            ))}
+        </div>
+      </div>
 
       {/* Main Content */}
       <main className="p-6">{children}</main>

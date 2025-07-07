@@ -1,31 +1,19 @@
-import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
-import fs from 'fs/promises';
-import path from 'path';
+// example.mts
+import { ElevenLabsClient, play } from "@elevenlabs/elevenlabs-js";
+import "dotenv/config";
 
-// Get API key from command line argument
-const apiKey = process.argv[2];
-if (!apiKey) {
-  throw new Error('Please provide the API key as a command line argument: npx tsx example.mts your-api-key');
-}
+const elevenlabs = new ElevenLabsClient();
+const voiceId = "JBFqnCBsd6RMkjVDRZzb";
 
-// Initialize ElevenLabsClient with API key
-const elevenlabs = new ElevenLabsClient({ apiKey });
+const response = await fetch(
+  "https://storage.googleapis.com/eleven-public-cdn/audio/marketing/nicole.mp3"
+);
+const audioBlob = new Blob([await response.arrayBuffer()], { type: "audio/mp3" });
 
-async function main() {
-  try {
-    const audio = await elevenlabs.textToSpeech.convert('EXAVITQu4vr4xnSDxMaL', {
-      text: 'The first move is what sets everything in motion.',
-      modelId: 'eleven_multilingual_v2',
-      outputFormat: 'mp3_44100_128',
-    });
+const audioStream = await elevenlabs.speechToSpeech.convert(voiceId, {
+  audio: audioBlob,
+  modelId: "eleven_multilingual_sts_v2",
+  outputFormat: "mp3_44100_128",
+});
 
-    // Save audio to a file
-    const outputFilePath = path.join(process.cwd(), 'output.mp3');
-    await fs.writeFile(outputFilePath, audio);
-    console.log(`Audio saved successfully to ${outputFilePath}`);
-  } catch (error) {
-    console.error('Error:', error);
-  }
-}
-
-main();
+await play(audioStream);
