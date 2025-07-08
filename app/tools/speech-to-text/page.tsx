@@ -18,7 +18,6 @@ export default function SpeechToTextPage() {
   const [showHistory, setShowHistory] = useState(false);
   const audioRefs = useRef<HTMLAudioElement[]>([]);
 
-  // ✅ LocalStorage-based lazy initialization
   const [history, setHistory] = useState<HistoryItem[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -60,7 +59,6 @@ export default function SpeechToTextPage() {
     }
   };
 
-  // ✅ Save to localStorage whenever history changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -158,8 +156,7 @@ export default function SpeechToTextPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-black text-white">
-      {/* Sidebar */}
+    <div className="flex min-h-screen bg-gradient-to-br from-purple-900 via-black to-blue-900 text-white">
       {showHistory && (
         <div className="w-72 border-r border-gray-800 p-4 overflow-y-auto bg-[#111]">
           <h2 className="text-xl font-semibold mb-6 border-b pb-2 border-gray-700">
@@ -210,7 +207,6 @@ export default function SpeechToTextPage() {
         </div>
       )}
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col items-center px-4 py-10">
         <div className="self-start mb-4">
           <button onClick={toggleHistory} className="text-2xl font-bold text-gray-400 px-3 py-1">
@@ -219,7 +215,7 @@ export default function SpeechToTextPage() {
         </div>
 
         <div className="w-full max-w-3xl text-center mb-10">
-          <h1 className="text-4xl font-extrabold text-white">Speech to Text</h1>
+          <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">Speech to Text</h1>
           <p className="text-gray-400 mt-2">Convert your voice into text using ElevenLabs style UI</p>
         </div>
 
@@ -227,7 +223,7 @@ export default function SpeechToTextPage() {
           {!isRecording ? (
             <button
               onClick={handleStartRecording}
-              className="w-full py-4 px-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95"
             >
               🎙️ Start Speaking
             </button>
@@ -271,7 +267,7 @@ export default function SpeechToTextPage() {
 
           <button
             onClick={handleTranscribe}
-            className="w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95"
           >
             📄 Show Transcription
           </button>
