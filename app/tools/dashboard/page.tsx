@@ -1,5 +1,7 @@
 'use client';
-import { useState } from 'react';
+
+import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
 
 const LANGS = [
   { label: 'English', code: 'en' },
@@ -11,10 +13,14 @@ const LANGS = [
   { label: 'Japanese', code: 'ja' },
 ];
 
+const supabase = createClient();
+
 export default function TextToSpeechPage() {
   const [text, setText] = useState('');
   const [lang, setLang] = useState('en');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [ttsHistory, setTtsHistory] = useState<any[]>([]);
+  const [popupText, setPopupText] = useState<string | null>(null);
 
   const handleSpeak = async () => {
     if (!text.trim()) return alert('Enter text');
@@ -34,6 +40,7 @@ export default function TextToSpeechPage() {
     const url = URL.createObjectURL(blob);
     setAudioUrl(url);
     new Audio(url).play();
+    fetchTtsHistory();
   };
 
   const handleDownload = () => {
@@ -43,6 +50,38 @@ export default function TextToSpeechPage() {
     a.download = `speech-${lang}.mp3`;
     a.click();
   };
+
+  const fetchTtsHistory = async () => {
+    const { data, error } = await supabase
+      .from('tts_history')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Fetch error:', error.message);
+    } else {
+      setTtsHistory(data || []);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!id) {
+      console.warn('Delete skipped: Invalid ID');
+      return;
+    }
+
+    const { error } = await supabase.from('tts_history').delete().eq('id', id);
+    if (error) {
+      console.error('Delete error:', error.message);
+      alert('Failed to delete the record.');
+    } else {
+      fetchTtsHistory();
+    }
+  };
+
+  useEffect(() => {
+    fetchTtsHistory();
+  }, []);
 
   return (
     <div className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-10 bg-gradient-to-br from-purple via-black to-blue-900 text-white">
@@ -55,6 +94,7 @@ export default function TextToSpeechPage() {
         </p>
       </div>
 
+      {/* INPUT SECTION */}
       <div className="w-full max-w-2xl bg-[#111] border border-gray-800 rounded-2xl shadow-lg p-8 space-y-6">
         <textarea
           className="w-full h-40 p-4 rounded-xl bg-gray-900 border border-gray-700 text-white placeholder-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-purple-600"
@@ -102,6 +142,83 @@ export default function TextToSpeechPage() {
           </div>
         )}
       </div>
+
+      {/* HISTORY SECTION */}
+      <div className="w-full max-w-4xl mt-10 bg-[#111] p-6 rounded-xl shadow-xl">
+        <h2 className="text-xl font-semibold mb-4 text-center">TTS History</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full table-auto border-collapse text-sm">
+            <thead>
+              <tr className="bg-gray-800">
+                <th className="border px-4 py-2">#</th>
+                <th className="border px-4 py-2">Input Text</th>
+                <th className="border px-4 py-2">Language</th>
+                <th className="border px-4 py-2">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ttsHistory.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="text-center text-gray-500 py-4">
+                    No TTS history found.
+                  </td>
+                </tr>
+              ) : (
+                ttsHistory.map((row, index) => (
+                  <tr key={row.id || index} className="bg-gray-900">
+                    <td className="border px-4 py-2">{index + 1}</td>
+                    <td className="border px-4 py-2">{row.input_text}</td>
+                    <td className="border px-4 py-2">{row.lang}</td>
+                    <td className="border px-4 py-2 flex flex-wrap justify-center gap-2">
+                      {row.audio_path && (
+                        <button
+                          onClick={() => {
+                            const audio = new Audio(row.audio_path);
+                            audio.play();
+                          }}
+                          className="text-blue-400 hover:underline"
+                        >
+                          ▶️ Play
+                        </button>
+                      )}
+                      {row.translated && (
+                        <button
+                          onClick={() => setPopupText(row.translated)}
+                          className="text-yellow-400 hover:underline"
+                        >
+                          💬 Translated
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDelete(row.id)}
+                        className="text-red-400 hover:underline"
+                      >
+                        🗑️ Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* POPUP for TRANSLATED TEXT */}
+      {popupText && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-purple-600 text-white p-6 rounded-xl max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-2">Translated Text</h3>
+            <p className="mb-4 max-h-60 overflow-y-auto">{popupText}</p>
+            <button
+              onClick={() => setPopupText(null)}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

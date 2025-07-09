@@ -1,4 +1,3 @@
-// app/api/transcribe/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 
@@ -20,7 +19,7 @@ export async function POST(req: NextRequest) {
     const result = await elevenlabs.speechToText.convert({
       file: blob,
       modelId: 'scribe_v1',
-      languageCode: 'eng', // adjust if needed
+      languageCode: 'eng',
       tagAudioEvents: true,
       diarize: true,
     });

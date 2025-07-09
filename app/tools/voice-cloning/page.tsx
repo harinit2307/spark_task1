@@ -66,7 +66,7 @@ export default function VoiceCloningPage() {
     const formData = new FormData();
     formData.append('audio', audioBlobRef.current);
     formData.append('text', textToSpeak);
-    formData.append('voiceId', 'zQzvQBubVkDWYuqJYMFn'); // Default or dummy voiceId
+    formData.append('voiceId', ''); // Default or dummy voiceId
 
     try {
       const response = await fetch('/api/clone-voice', {

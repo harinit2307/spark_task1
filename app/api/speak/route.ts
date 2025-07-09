@@ -1,47 +1,76 @@
 import { NextResponse } from 'next/server';
 import { getSpeechBuffer } from '@/lib/tts';
 import { translate } from '@vitalets/google-translate-api';
-import { createClient } from '@/lib/supabase/server'; // ✅ Use the server version
+import { createClient } from '@/lib/supabase/server';
+import { randomUUID } from 'crypto';
 
 export async function POST(req: Request) {
-  const supabase = await createClient(); // ✅ Await this inside the handler
-
+  const supabase = await createClient();
   const { text, to } = await req.json();
-  if (!text) return NextResponse.json({ error: 'Text required' }, { status: 400 });
+
+  if (!text) {
+    return NextResponse.json({ error: 'Text required' }, { status: 400 });
+  }
 
   try {
     const { text: translated } = await translate(text, { to: to || 'en' });
-    const audioBuffer = await getSpeechBuffer(translated);
-    const buffer = await streamToBuffer(audioBuffer);
 
-    // ✅ Store in Supabase
-    const { error } = await supabase.from('tts_history').insert([
+    const audioStream = await getSpeechBuffer(translated);
+    const audioBuffer = await streamToBuffer(audioStream);
+
+    const filename = `${randomUUID()}.mp3`;
+
+    // ✅ Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('tts-audio') // make sure the bucket name matches
+      .upload(filename, audioBuffer, {
+        contentType: 'audio/mpeg',
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error('❌ Upload error:', uploadError.message);
+      return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+    }
+
+    // ✅ Construct public URL
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('tts-audio').getPublicUrl(filename);
+
+    // ✅ Insert metadata into DB
+    const { error: insertError } = await supabase.from('tts_history').insert([
       {
         input_text: text,
         translated,
         lang: to,
+        audio_path: publicUrl,
       },
     ]);
 
-    if (error) console.error('❌ Supabase insert failed:', error.message);
+    if (insertError) {
+      console.error('❌ DB insert error:', insertError.message);
+      return NextResponse.json({ error: 'Database insert failed' }, { status: 500 });
+    }
 
-    return new Response(buffer, {
+    return new Response(audioBuffer, {
       status: 200,
       headers: { 'Content-Type': 'audio/mpeg' },
     });
-  } catch (err) {
-    console.error('❌ Error:', err);
+  } catch (err: any) {
+    console.error('❌ TTS error:', err.message || err);
     return NextResponse.json({ error: 'Speech generation failed' }, { status: 500 });
   }
 }
 
+// helper to convert ReadableStream to Buffer
 async function streamToBuffer(stream: ReadableStream<Uint8Array>) {
-  const chunks: Uint8Array[] = [];
   const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    chunks.push(value);
+    chunks.push(value!);
   }
   return Buffer.concat(chunks);
 }
