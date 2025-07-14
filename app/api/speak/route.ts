@@ -20,9 +20,8 @@ export async function POST(req: Request) {
 
     const filename = `${randomUUID()}.mp3`;
 
-    // ✅ Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('tts-audio') // make sure the bucket name matches
+      .from('tts-audio')
       .upload(filename, audioBuffer, {
         contentType: 'audio/mpeg',
         upsert: false,
@@ -33,12 +32,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
     }
 
-    // ✅ Construct public URL
     const {
       data: { publicUrl },
     } = supabase.storage.from('tts-audio').getPublicUrl(filename);
 
-    // ✅ Insert metadata into DB
     const { error: insertError } = await supabase.from('tts_history').insert([
       {
         input_text: text,
@@ -53,9 +50,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Database insert failed' }, { status: 500 });
     }
 
-    return new Response(audioBuffer, {
-      status: 200,
-      headers: { 'Content-Type': 'audio/mpeg' },
+    // ✅ Now return the audio as blob URL and metadata
+    return NextResponse.json({
+      success: true,
+      audioUrl: publicUrl,
     });
   } catch (err: any) {
     console.error('❌ TTS error:', err.message || err);
@@ -63,7 +61,6 @@ export async function POST(req: Request) {
   }
 }
 
-// helper to convert ReadableStream to Buffer
 async function streamToBuffer(stream: ReadableStream<Uint8Array>) {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];

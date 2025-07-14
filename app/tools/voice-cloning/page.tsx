@@ -21,27 +21,18 @@ export default function VoiceCloningPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Clear previous error
       setError(null);
-      
-      // Check file type
       if (!file.type.startsWith('audio/')) {
         setError('Please select a valid audio file (MP3, WAV, etc.)');
         return;
       }
-      
-      // Check file size
       if (file.size > 10 * 1024 * 1024) {
         setError('File size must be less than 10MB');
         return;
       }
-      
-      // Store the file and update state
       audioBlobRef.current = file;
       setAudioURL(URL.createObjectURL(file));
       setClonedAudioURL(null);
-      
-      // Reset form to allow re-selecting the same file
       e.target.value = '';
     }
   };
@@ -66,7 +57,7 @@ export default function VoiceCloningPage() {
     const formData = new FormData();
     formData.append('audio', audioBlobRef.current);
     formData.append('text', textToSpeak);
-    formData.append('voiceId', ''); // Default or dummy voiceId
+    formData.append('voiceId', '');
 
     try {
       const response = await fetch('/api/clone-voice', {
@@ -86,7 +77,6 @@ export default function VoiceCloningPage() {
         setError(err.message);
       } else if (typeof err === 'object' && err !== null) {
         const elevenLabsError = err as ElevenLabsError;
-        // Check for subscription error
         if (elevenLabsError.detail?.status === 'can_not_use_instant_voice_cloning') {
           setError('Your subscription does not support instant voice cloning. Please upgrade your ElevenLabs subscription.');
         } else {

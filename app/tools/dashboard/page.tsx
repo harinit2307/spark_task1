@@ -4,13 +4,19 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 const LANGS = [
-  { label: 'English', code: 'en' },
-  { label: 'Hindi', code: 'hi' },
-  { label: 'German', code: 'de' },
-  { label: 'Spanish', code: 'es' },
-  { label: 'French', code: 'fr' },
-  { label: 'Chinese (Simplified)', code: 'zh-CN' },
-  { label: 'Japanese', code: 'ja' },
+  { label: 'English', code: 'english' },
+  { label: 'Hindi', code: 'hindi' },
+  { label: 'German', code: 'German' },
+  { label: 'Spanish', code: 'Spanish' },
+  { label: 'French', code: 'French' },
+  { label: 'Chinese (Simplified)', code: 'Chinese' },
+  { label: 'Japanese', code: 'Japanese' },
+  { label: 'Korean', code: 'korean' },
+  { label: 'Arabic', code: 'arabic' },
+  { label: 'Russian', code: 'Russian' },
+  { label: 'Portuguese', code: 'Portugese' },
+  { label: 'Italian', code: 'Italian' },
+  { label: 'Tamil', code: 'Tamil' },
 ];
 
 const supabase = createClient();
@@ -21,6 +27,8 @@ export default function TextToSpeechPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [ttsHistory, setTtsHistory] = useState<any[]>([]);
   const [popupText, setPopupText] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const handleSpeak = async () => {
     if (!text.trim()) return alert('Enter text');
@@ -52,10 +60,14 @@ export default function TextToSpeechPage() {
   };
 
   const fetchTtsHistory = async () => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
     const { data, error } = await supabase
       .from('tts_history')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('id, input_text, translated, lang, audio_path')
+      .order('created_at', { ascending: false })
+      .range(from, to);
 
     if (error) {
       console.error('Fetch error:', error.message);
@@ -64,24 +76,62 @@ export default function TextToSpeechPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!id) {
-      console.warn('Delete skipped: Invalid ID');
-      return;
-    }
-
-    const { error } = await supabase.from('tts_history').delete().eq('id', id);
-    if (error) {
-      console.error('Delete error:', error.message);
-      alert('Failed to delete the record.');
-    } else {
+  const handleDelete = async (id: string, audioPath: string) => {
+    const confirmDelete = confirm('Are you sure you want to delete this item?');
+    if (!confirmDelete) return;
+  
+    try {
+      // Extract everything after `/tts-audio/`
+      const filePath = decodeURIComponent(
+        audioPath.split('/tts-audio/')[1] || ''
+      );
+  
+      if (!filePath) {
+        console.warn('Invalid audio path, cannot extract file path:', audioPath);
+        alert('Error: Could not extract file path from audio URL.');
+        return;
+      }
+  
+      // Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from('tts-audio')
+        .remove([filePath]);
+  
+      if (storageError) {
+        console.error('Storage deletion failed:', storageError.message);
+        alert('Failed to delete audio file.');
+        return;
+      }
+  
+      // Delete from table
+      const { error: dbError } = await supabase
+        .from('tts_history')
+        .delete()
+        .eq('id', id);
+  
+      if (dbError) {
+        console.error('DB deletion failed:', dbError.message);
+        alert('Failed to delete record from database.');
+        return;
+      }
+  
+      // Refresh UI
       fetchTtsHistory();
+    } catch (err: any) {
+      console.error('Deletion error:', err.message || err);
+      alert('Unexpected error deleting the record.');
     }
   };
+  
 
   useEffect(() => {
     fetchTtsHistory();
-  }, []);
+  }, [page]);
+
+  const getLangLabel = (code: string) => {
+    const found = LANGS.find((l) => l.code === code);
+    return found ? found.label : code;
+  };
 
   return (
     <div className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-10 bg-gradient-to-br from-purple via-black to-blue-900 text-white">
@@ -94,7 +144,6 @@ export default function TextToSpeechPage() {
         </p>
       </div>
 
-      {/* INPUT SECTION */}
       <div className="w-full max-w-2xl bg-[#111] border border-gray-800 rounded-2xl shadow-lg p-8 space-y-6">
         <textarea
           className="w-full h-40 p-4 rounded-xl bg-gray-900 border border-gray-700 text-white placeholder-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-purple-600"
@@ -129,7 +178,7 @@ export default function TextToSpeechPage() {
                 onClick={handleDownload}
                 className="px-6 py-3 bg-green-600 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
               >
-                ⬇️ Download
+                ⬇ Download
               </button>
             )}
           </div>
@@ -143,7 +192,6 @@ export default function TextToSpeechPage() {
         )}
       </div>
 
-      {/* HISTORY SECTION */}
       <div className="w-full max-w-4xl mt-10 bg-[#111] p-6 rounded-xl shadow-xl">
         <h2 className="text-xl font-semibold mb-4 text-center">TTS History</h2>
         <div className="overflow-x-auto">
@@ -166,9 +214,9 @@ export default function TextToSpeechPage() {
               ) : (
                 ttsHistory.map((row, index) => (
                   <tr key={row.id || index} className="bg-gray-900">
-                    <td className="border px-4 py-2">{index + 1}</td>
+                    <td className="border px-4 py-2">{(page - 1) * pageSize + index + 1}</td>
                     <td className="border px-4 py-2">{row.input_text}</td>
-                    <td className="border px-4 py-2">{row.lang}</td>
+                    <td className="border px-4 py-2">{getLangLabel(row.lang)}</td>
                     <td className="border px-4 py-2 flex flex-wrap justify-center gap-2">
                       {row.audio_path && (
                         <button
@@ -178,7 +226,7 @@ export default function TextToSpeechPage() {
                           }}
                           className="text-blue-400 hover:underline"
                         >
-                          ▶️ Play
+                          ▶ Play
                         </button>
                       )}
                       {row.translated && (
@@ -190,10 +238,10 @@ export default function TextToSpeechPage() {
                         </button>
                       )}
                       <button
-                        onClick={() => handleDelete(row.id)}
+                        onClick={() => handleDelete(row.id, row.audio_path)}
                         className="text-red-400 hover:underline"
                       >
-                        🗑️ Delete
+                        🗑 Delete
                       </button>
                     </td>
                   </tr>
@@ -202,9 +250,25 @@ export default function TextToSpeechPage() {
             </tbody>
           </table>
         </div>
+
+        <div className="flex justify-center mt-4 gap-4">
+          <button
+            onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+            className="px-4 py-2 bg-gray-700 text-white rounded disabled:opacity-50"
+            disabled={page === 1}
+          >
+            ⬅ 
+          </button>
+          <span className="text-white px-2">Page {page}</span>
+          <button
+            onClick={() => setPage((prev) => prev + 1)}
+            className="px-4 py-2 bg-gray-700 text-white rounded"
+          >
+            ➡
+          </button>
+        </div>
       </div>
 
-      {/* POPUP for TRANSLATED TEXT */}
       {popupText && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-gray-900 border border-purple-600 text-white p-6 rounded-xl max-w-md w-full">

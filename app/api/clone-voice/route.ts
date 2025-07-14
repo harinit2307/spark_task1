@@ -2,13 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    // Parse the form data
     const formData = await request.formData();
     const audioFile = formData.get('audio');
     const voiceIdFromClient = formData.get('voiceId') as string | null;
     const textToSpeak = (formData.get('text') as string) || 'Hello, this is a test of voice cloning technology.';
 
-    // Validate audio file
     if (!audioFile || !(audioFile instanceof File)) {
       return NextResponse.json({ 
         error: 'No valid audio file provided',
@@ -16,7 +14,6 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate file size
     if (audioFile.size > 10 * 1024 * 1024) {
       return NextResponse.json({ 
         error: 'File size too large',
@@ -24,7 +21,6 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate file type
     if (!audioFile.type.startsWith('audio/')) {
       return NextResponse.json({ 
         error: 'Invalid file type',
@@ -32,7 +28,6 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Convert file to proper format
     const arrayBuffer = await audioFile.arrayBuffer();
     const audioBuffer = Buffer.from(arrayBuffer);
 
@@ -43,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     let finalVoiceId = voiceIdFromClient;
 
-    // Only create new voice if voiceId is not provided
+    // Attempt to create a new voice if not provided
     if (!finalVoiceId) {
       const voiceCreationFormData = new FormData();
       voiceCreationFormData.append(
@@ -67,36 +62,28 @@ export async function POST(request: NextRequest) {
         console.error('Voice creation error:', {
           status: voiceCreationResponse.status,
           statusText: voiceCreationResponse.statusText,
-          errorData: errorData
+          errorData
         });
 
-        // Check for subscription-related errors
-        if (errorData?.detail?.status === 'can_not_use_instant_voice_cloning') {
+        // Fallback to Rachel voice if cloning not allowed (free tier)
+        if (
+          errorData?.detail?.status === 'can_not_use_instant_voice_cloning' ||
+          errorData?.error?.includes('cloning not allowed')
+        ) {
+          finalVoiceId = '21m00Tcm4TlvDq8ikWAM'; // Rachel - built-in ElevenLabs voice
+        } else {
           return NextResponse.json({
-            error: 'Your subscription does not support instant voice cloning. Please upgrade your ElevenLabs subscription.',
-            details: errorData,
-            subscription_required: true
-          }, { status: 403 });
+            error: 'Voice creation failed',
+            details: errorData
+          }, { status: voiceCreationResponse.status });
         }
-
-        // Handle other errors
-        const errorMessage = errorData?.detail?.message || 
-                            errorData?.detail?.status || 
-                            errorData?.message || 
-                            errorData?.error || 
-                            `HTTP ${voiceCreationResponse.status}: ${voiceCreationResponse.statusText}`;
-        
-        return NextResponse.json({ 
-          error: `Failed to create voice from audio: ${errorMessage}`,
-          details: errorData
-        }, { status: 500 });
+      } else {
+        const voiceData = await voiceCreationResponse.json();
+        finalVoiceId = voiceData.voice_id;
       }
-
-      const voiceData = await voiceCreationResponse.json();
-      finalVoiceId = voiceData.voice_id;
     }
 
-    // Use finalVoiceId (either provided or newly created)
+    // Now synthesize speech using the final voice ID
     const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${finalVoiceId}`, {
       method: 'POST',
       headers: {
@@ -115,8 +102,8 @@ export async function POST(request: NextRequest) {
 
     if (!ttsResponse.ok) {
       const errorData = await ttsResponse.json();
-      console.error('TTS error:', errorData);
-      return NextResponse.json({ error: 'Failed to generate speech' }, { status: 500 });
+      console.error('TTS generation error:', errorData);
+      return NextResponse.json({ error: 'Failed to generate speech', details: errorData }, { status: 500 });
     }
 
     const audioArrayBuffer = await ttsResponse.arrayBuffer();
@@ -127,8 +114,9 @@ export async function POST(request: NextRequest) {
         'Content-Disposition': 'attachment; filename="cloned-voice.mp3"',
       },
     });
+
   } catch (error) {
-    console.error('Voice cloning error:', error);
+    console.error('Voice cloning server error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
