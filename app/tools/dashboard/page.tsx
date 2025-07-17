@@ -27,8 +27,12 @@ export default function TextToSpeechPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [ttsHistory, setTtsHistory] = useState<any[]>([]);
   const [popupText, setPopupText] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmDeleteAudioPath, setConfirmDeleteAudioPath] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 1;
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   const handleSpeak = async () => {
     if (!text.trim()) return alert('Enter text');
@@ -48,7 +52,7 @@ export default function TextToSpeechPage() {
     const url = URL.createObjectURL(blob);
     setAudioUrl(url);
     new Audio(url).play();
-    fetchTtsHistory();
+    setTimeout(() => fetchTtsHistory(), 500);
   };
 
   const handleDownload = () => {
@@ -63,9 +67,9 @@ export default function TextToSpeechPage() {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    const { data, error } = await supabase
+    const { data, count, error } = await supabase
       .from('tts_history')
-      .select('id, input_text, translated, lang, audio_path')
+      .select('id, input_text, translated, lang, audio_path', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(from, to);
 
@@ -73,56 +77,55 @@ export default function TextToSpeechPage() {
       console.error('Fetch error:', error.message);
     } else {
       setTtsHistory(data || []);
+      setTotalCount(count || 0);
     }
   };
 
-  const handleDelete = async (id: string, audioPath: string) => {
-    const confirmDelete = confirm('Are you sure you want to delete this item?');
-    if (!confirmDelete) return;
-  
+  const confirmDelete = (id: string, audioPath: string) => {
+    setConfirmDeleteId(id);
+    setConfirmDeleteAudioPath(audioPath);
+  };
+
+  const deleteNow = async () => {
+    if (!confirmDeleteId || !confirmDeleteAudioPath) return;
+
     try {
-      // Extract everything after `/tts-audio/`
-      const filePath = decodeURIComponent(
-        audioPath.split('/tts-audio/')[1] || ''
-      );
-  
+      const filePath = decodeURIComponent(confirmDeleteAudioPath.split('/tts-audio/')[1] || '');
+
+      const { error: dbError } = await supabase
+        .from('tts_history')
+        .delete()
+        .eq('id', confirmDeleteId);
+
       if (!filePath) {
-        console.warn('Invalid audio path, cannot extract file path:', audioPath);
-        alert('Error: Could not extract file path from audio URL.');
+        alert('Invalid file path.');
         return;
       }
-  
-      // Delete from storage
+
       const { error: storageError } = await supabase.storage
         .from('tts-audio')
         .remove([filePath]);
-  
+
       if (storageError) {
         console.error('Storage deletion failed:', storageError.message);
         alert('Failed to delete audio file.');
         return;
       }
-  
-      // Delete from table
-      const { error: dbError } = await supabase
-        .from('tts_history')
-        .delete()
-        .eq('id', id);
-  
+
       if (dbError) {
         console.error('DB deletion failed:', dbError.message);
-        alert('Failed to delete record from database.');
+        alert('Failed to delete record.');
         return;
       }
-  
-      // Refresh UI
+
+      setConfirmDeleteId(null);
+      setConfirmDeleteAudioPath(null);
       fetchTtsHistory();
     } catch (err: any) {
       console.error('Deletion error:', err.message || err);
-      alert('Unexpected error deleting the record.');
+      alert('Unexpected error deleting.');
     }
   };
-  
 
   useEffect(() => {
     fetchTtsHistory();
@@ -131,6 +134,19 @@ export default function TextToSpeechPage() {
   const getLangLabel = (code: string) => {
     const found = LANGS.find((l) => l.code === code);
     return found ? found.label : code;
+  };
+
+  const getPaginationNumbers = () => {
+    const visiblePages = 5;
+    let start = Math.max(1, page - Math.floor(visiblePages / 2));
+    let end = Math.min(totalPages, start + visiblePages - 1);
+    if (end - start < visiblePages - 1) start = Math.max(1, end - visiblePages + 1);
+
+    const pages = [];
+    if (start > 1) pages.push(1, '...');
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < totalPages) pages.push('...', totalPages);
+    return pages;
   };
 
   return (
@@ -220,10 +236,7 @@ export default function TextToSpeechPage() {
                     <td className="border px-4 py-2 flex flex-wrap justify-center gap-2">
                       {row.audio_path && (
                         <button
-                          onClick={() => {
-                            const audio = new Audio(row.audio_path);
-                            audio.play();
-                          }}
+                          onClick={() => new Audio(row.audio_path).play()}
                           className="text-blue-400 hover:underline"
                         >
                           ▶ Play
@@ -238,7 +251,7 @@ export default function TextToSpeechPage() {
                         </button>
                       )}
                       <button
-                        onClick={() => handleDelete(row.id, row.audio_path)}
+                        onClick={() => confirmDelete(row.id, row.audio_path)}
                         className="text-red-400 hover:underline"
                       >
                         🗑 Delete
@@ -251,18 +264,30 @@ export default function TextToSpeechPage() {
           </table>
         </div>
 
-        <div className="flex justify-center mt-4 gap-4">
+        <div className="flex justify-center mt-4 gap-1 flex-wrap">
           <button
             onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-            className="px-4 py-2 bg-gray-700 text-white rounded disabled:opacity-50"
+            className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
             disabled={page === 1}
           >
-            ⬅ 
+            ⬅
           </button>
-          <span className="text-white px-2">Page {page}</span>
+          {getPaginationNumbers().map((num, idx) => (
+            <button
+              key={idx}
+              onClick={() => typeof num === 'number' && setPage(num)}
+              className={`px-3 py-1 rounded ${
+                page === num ? 'bg-white text-black' : 'bg-gray-800 text-white'
+              } ${typeof num !== 'number' && 'cursor-default'}`}
+              disabled={typeof num !== 'number'}
+            >
+              {num}
+            </button>
+          ))}
           <button
-            onClick={() => setPage((prev) => prev + 1)}
-            className="px-4 py-2 bg-gray-700 text-white rounded"
+            onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+            className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
+            disabled={page === totalPages}
           >
             ➡
           </button>
@@ -280,6 +305,32 @@ export default function TextToSpeechPage() {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 p-6 rounded-xl max-w-md w-full text-white text-center">
+            <h3 className="text-lg font-semibold mb-4">Delete Confirmation</h3>
+            <p className="text-gray-300 mb-6">Are you sure you want to delete this TTS record?</p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={deleteNow}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded"
+              >
+                Yes, Delete
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmDeleteId(null);
+                  setConfirmDeleteAudioPath(null);
+                }}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

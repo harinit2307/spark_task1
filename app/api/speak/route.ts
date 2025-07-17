@@ -13,14 +13,16 @@ export async function POST(req: Request) {
   }
 
   try {
+    // Translate
     const { text: translated } = await translate(text, { to: to || 'en' });
 
+    // Generate audio buffer
     const audioStream = await getSpeechBuffer(translated);
     const audioBuffer = await streamToBuffer(audioStream);
 
+    // Save file to Supabase Storage
     const filename = `${randomUUID()}.mp3`;
-
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('tts-audio')
       .upload(filename, audioBuffer, {
         contentType: 'audio/mpeg',
@@ -36,6 +38,7 @@ export async function POST(req: Request) {
       data: { publicUrl },
     } = supabase.storage.from('tts-audio').getPublicUrl(filename);
 
+    // Insert metadata into Supabase
     const { error: insertError } = await supabase.from('tts_history').insert([
       {
         input_text: text,
@@ -50,13 +53,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Database insert failed' }, { status: 500 });
     }
 
-    // ✅ Now return the audio as blob URL and metadata
-    return NextResponse.json({
-      success: true,
-      audioUrl: publicUrl,
+    // ✅ Return as blob for playback
+    return new Response(audioBuffer, {
+      headers: {
+        'Content-Type': 'audio/mpeg',
+      },
     });
   } catch (err: any) {
-    console.error('❌ TTS error:', err.message || err);
+    console.error('❌ TTS Error:', err.message || err);
     return NextResponse.json({ error: 'Speech generation failed' }, { status: 500 });
   }
 }
