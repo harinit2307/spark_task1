@@ -1,20 +1,27 @@
 // app/api/convo/route.ts
-import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { NextRequest, NextResponse } from 'next/server';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+export async function POST(req: NextRequest) {
+  const body = await req.json();
 
-export async function POST(req: Request) {
-  const { prompt } = await req.json();
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'http://localhost:3000',
+    },
+    body: JSON.stringify({
+      model: 'meta-llama/llama-3-8b-instruct',
+      messages: body.messages,
+    }),
+  });
 
-  try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-    const result = await model.generateContent(prompt);
-    const response = result.response.text();
-
-    return NextResponse.json({ response });
-  } catch (err) {
-    console.error('Gemini Error:', err);
-    return NextResponse.json({ error: 'Failed to generate response' }, { status: 500 });
+  if (!res.ok) {
+    const error = await res.text();
+    return NextResponse.json({ error }, { status: res.status });
   }
+
+  const data = await res.json();
+  return NextResponse.json({ message: data.choices[0].message.content });
 }
