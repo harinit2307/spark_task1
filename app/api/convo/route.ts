@@ -1,27 +1,47 @@
-// app/api/convo/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
+
+const SYSTEM_PROMPT = `
+You are a helpful AI assistant for ElevenLabs. Answer only questions related to ElevenLabs features, APIs, voice technology, and platform usage.
+If the user asks something unrelated, politely respond that you are only trained to help with ElevenLabs.
+`;
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  try {
+    const { prompt } = await req.json();
 
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'http://localhost:3000',
-    },
-    body: JSON.stringify({
-      model: 'meta-llama/llama-3-8b-instruct',
-      messages: body.messages,
-    }),
-  });
+    if (!prompt || typeof prompt !== "string") {
+      return NextResponse.json({ error: "Invalid prompt" }, { status: 400 });
+    }
 
-  if (!res.ok) {
-    const error = await res.text();
-    return NextResponse.json({ error }, { status: res.status });
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: prompt }
+    ];
+
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-3-8b-instruct",
+        messages,
+      }),
+    });
+
+    if (!res.ok) {
+      const error = await res.text();
+      console.error("OpenRouter Error:", error);
+      return NextResponse.json({ error: "Upstream error" }, { status: 502 });
+    }
+
+    const data = await res.json();
+    const reply = data.choices?.[0]?.message?.content ?? "No response.";
+
+    return NextResponse.json({ answer: reply });
+  } catch (error) {
+    console.error("Convo route error:", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
-
-  const data = await res.json();
-  return NextResponse.json({ message: data.choices[0].message.content });
 }

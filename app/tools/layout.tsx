@@ -6,10 +6,11 @@ import React, { useState } from 'react';
 import { Menu } from 'lucide-react';
 
 const routes = [
-  { label: 'Speech to Text', path: '/tools/speech-to-text' },
   { label: 'Text to Speech', path: '/tools/dashboard' },
+  { label: 'Speech to Text', path: '/tools/speech-to-text' },
   { label: 'Voice Cloning', path: '/tools/voice-cloning' },
   { label: 'Conversation AI', path: '/tools/convoai' },
+  { label: 'Elevenlabs convo AI', path: '/tools/cons' },
 ];
 
 export default function ToolLayout({ children }: { children: React.ReactNode }) {
