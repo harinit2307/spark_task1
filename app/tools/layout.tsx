@@ -11,6 +11,7 @@ const routes = [
   { label: 'Voice Cloning', path: '/tools/voice-cloning' },
   { label: 'Conversation AI', path: '/tools/convoai' },
   { label: 'Elevenlabs convo AI', path: '/tools/cons' },
+  { label: 'Agents', path: '/tools/create-agent' },
 ];
 
 export default function ToolLayout({ children }: { children: React.ReactNode }) {

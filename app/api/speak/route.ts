@@ -1,77 +1,56 @@
-import { NextResponse } from 'next/server';
-import { getSpeechBuffer } from '@/lib/tts';
-import { translate } from '@vitalets/google-translate-api';
-import { createClient } from '@/lib/supabase/server';
-import { randomUUID } from 'crypto';
+// /app/api/speak/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { translate } from '@vitalets/google-translate-api/dist/cjs/index.js'; // or your preferred API
 
-export async function POST(req: Request) {
-  const supabase = await createClient();
+export async function POST(req: NextRequest) {
   const { text, to } = await req.json();
 
-  if (!text) {
-    return NextResponse.json({ error: 'Text required' }, { status: 400 });
+  if (!text || !to) {
+    return NextResponse.json({ error: 'Text and target language are required' }, { status: 400 });
+  }
+
+  const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY!;
+  const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID!;
+
+  if (!ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) {
+    return NextResponse.json({ error: 'API key or voice ID not configured' }, { status: 500 });
   }
 
   try {
-    // Translate
-    const { text: translated } = await translate(text, { to: to || 'en' });
+    // Step 1: Translate text to target language
+    const translation = await translate(text, { to: to || 'en' });
+    const translatedText = translation.text;
 
-    // Generate audio buffer
-    const audioStream = await getSpeechBuffer(translated);
-    const audioBuffer = await streamToBuffer(audioStream);
-
-    // Save file to Supabase Storage
-    const filename = `${randomUUID()}.mp3`;
-    const { error: uploadError } = await supabase.storage
-      .from('tts-audio')
-      .upload(filename, audioBuffer, {
-        contentType: 'audio/mpeg',
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error('❌ Upload error:', uploadError.message);
-      return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
-    }
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from('tts-audio').getPublicUrl(filename);
-
-    // Insert metadata into Supabase
-    const { error: insertError } = await supabase.from('tts_history').insert([
-      {
-        input_text: text,
-        translated,
-        lang: to,
-        audio_path: publicUrl,
+    // Step 2: Call ElevenLabs TTS
+    const ttsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`, {
+      method: 'POST',
+      headers: {
+        'xi-api-key': ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json'
       },
-    ]);
+      body: JSON.stringify({
+        text: translatedText,
+        voice_settings: {
+          stability: 0.75,
+          similarity_boost: 0.75
+        }
+      })
+    });
 
-    if (insertError) {
-      console.error('❌ DB insert error:', insertError.message);
-      return NextResponse.json({ error: 'Database insert failed' }, { status: 500 });
+    if (!ttsResponse.ok) {
+      const errorData = await ttsResponse.json();
+      return NextResponse.json({ error: 'TTS failed', details: errorData }, { status: 500 });
     }
 
-    // ✅ Return as blob for playback
-    return new Response(audioBuffer, {
+    const audioBuffer = await ttsResponse.arrayBuffer();
+
+    return new Response(Buffer.from(audioBuffer), {
       headers: {
         'Content-Type': 'audio/mpeg',
       },
     });
-  } catch (err: any) {
-    console.error('❌ TTS Error:', err.message || err);
-    return NextResponse.json({ error: 'Speech generation failed' }, { status: 500 });
+  } catch (error: any) {
+    console.error('TTS Translation Error:', error);
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
-}
-
-async function streamToBuffer(stream: ReadableStream<Uint8Array>) {
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value!);
-  }
-  return Buffer.concat(chunks);
 }

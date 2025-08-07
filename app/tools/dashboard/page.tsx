@@ -4,21 +4,20 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 const LANGS = [
-  { label: 'English', code: 'english' },
-  { label: 'Hindi', code: 'hindi' },
-  { label: 'German', code: 'German' },
-  { label: 'Spanish', code: 'Spanish' },
-  { label: 'French', code: 'French' },
-  { label: 'Chinese (Simplified)', code: 'Chinese' },
-  { label: 'Japanese', code: 'Japanese' },
-  { label: 'Korean', code: 'korean' },
-  { label: 'Arabic', code: 'arabic' },
-  { label: 'Russian', code: 'Russian' },
-  { label: 'Portuguese', code: 'Portugese' },
-  { label: 'Italian', code: 'Italian' },
-  { label: 'Tamil', code: 'Tamil' },
+  { label: 'English', code: 'en' },
+  { label: 'Hindi', code: 'hi' },
+  { label: 'German', code: 'de' },
+  { label: 'Spanish', code: 'es' },
+  { label: 'French', code: 'fr' },
+  { label: 'Chinese (Simplified)', code: 'zh-CN' },
+  { label: 'Japanese', code: 'ja' },
+  { label: 'Korean', code: 'ko' },
+  { label: 'Arabic', code: 'ar' },
+  { label: 'Russian', code: 'ru' },
+  { label: 'Portuguese', code: 'pt' },
+  { label: 'Italian', code: 'it' },
+  { label: 'Tamil', code: 'ta' },
 ];
-
 const supabase = createClient();
 
 export default function TextToSpeechPage() {
