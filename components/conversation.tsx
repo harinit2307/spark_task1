@@ -8,6 +8,19 @@ export function Conversation() {
   const [startTime, setStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState('00:00');
   const [isMuted, setIsMuted] = useState(false);
+  const [showLangDropdown, setShowLangDropdown] = useState(false);
+  const [selectedLang, setSelectedLang] = useState({
+    code: 'us',
+    label: 'English',
+  });
+
+  const languages = [
+    { code: 'us', label: 'English' },
+    { code: 'fr', label: 'French' },
+    { code: 'es', label: 'Spanish' },
+    { code: 'de', label: 'German' },
+    { code: 'in', label: 'Hindi' },
+  ];
 
   // Update timer every second
   useEffect(() => {
@@ -75,23 +88,55 @@ export function Conversation() {
           {elapsedTime}
         </div>
 
-        {/* Blue spinner */}
-        <div className="w-24 h-24 mb-2 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 animate-spin-slow flex items-center justify-center">
-          <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-300 to-blue-500 blur-sm"></div>
-        </div>
+      {/* Blue rotating disc like ElevenLabs */}
+<div className="outer-circle">
+  <div className="inner-blob"></div>
+</div>
+
+
+
 
         {/* Assistant title */}
-        <div className="text-xl font-bold text-black">Eleven</div>
-        <p className="text-sm text-gray-500 mb-2">Your ElevenLabs assistant</p>
+        <div className="text-xl font-bold text-black">Agent</div>
+        <p className="text-sm text-gray-500 mb-2">Your College assistant</p>
 
         {/* Controls */}
-        <div className="flex items-center gap-6 mt-2">
-          {/* Flag icon */}
-          <img
-            src="https://flagcdn.com/us.svg"
-            alt="EN"
-            className="w-6 h-6 rounded-full border border-gray-300"
-          />
+        <div className="flex items-center gap-6 mt-2 relative">
+          {/* Flag with dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowLangDropdown((prev) => !prev)}
+              className="w-8 h-8 rounded-full border border-gray-300 overflow-hidden focus:outline-none"
+            >
+              <img
+                src={`https://flagcdn.com/${selectedLang.code}.svg`}
+                alt={selectedLang.label}
+                className="w-full h-full"
+              />
+            </button>
+
+            {showLangDropdown && (
+              <div className="absolute top-10 left-0 bg-white text-black shadow-md rounded-lg overflow-hidden z-10">
+                {languages.map((lang) => (
+                  <button
+                    key={lang.code}
+                    onClick={() => {
+                      setSelectedLang(lang);
+                      setShowLangDropdown(false);
+                    }}
+                    className="flex items-center gap-1 px-5 py-2 hover:bg-gray-100 w-full text-left"
+                  >
+                    <img
+                      src={`https://flagcdn.com/${lang.code}.svg`}
+                      alt={lang.label}
+                      className="w-5 h-5 rounded-full"
+                    />
+                    {lang.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Mic button */}
           <button
@@ -102,20 +147,15 @@ export function Conversation() {
             <span className="text-black text-lg">🎙️</span>
           </button>
 
-          {/* End call button */}
+          {/* Professional End call button */}
           <button
             onClick={stopConversation}
             disabled={conversation.status !== 'connected'}
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-red-500 hover:bg-red-600 transition"
+            className="px-4 py-2 rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold shadow-md hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
-            <span className="text-white text-lg">📴</span>
+            End Call
           </button>
         </div>
-
-        {/* Footer */}
-        <p className="text-xs text-gray-400 mt-4">
-          Discover the capabilities of Conversational Agents powered by ElevenLabs
-        </p>
       </div>
     </div>
   );
