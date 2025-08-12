@@ -1,5 +1,3 @@
-
-
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -104,6 +102,49 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error('Internal POST error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+// ... your existing GET and POST code here ...
+
+// ✅ DELETE: Delete an agent by agent_id
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const agent_id = searchParams.get('agent_id');
+
+    if (!agent_id) {
+      return NextResponse.json({ error: 'Missing agent_id' }, { status: 400 });
+    }
+
+    const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+    if (!ELEVENLABS_API_KEY) {
+      return NextResponse.json({ error: 'Missing ELEVENLABS_API_KEY' }, { status: 500 });
+    }
+
+    // Delete in ElevenLabs
+    const deleteResponse = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agent_id}`, {
+      method: 'DELETE',
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY },
+    });
+
+    if (!deleteResponse.ok) {
+      const text = await deleteResponse.text();
+      console.error('ElevenLabs delete failed:', text);
+      return NextResponse.json({ error: 'Failed to delete agent in ElevenLabs', details: text }, { status: 500 });
+    }
+
+    // Delete from Supabase
+    const { error: dbError } = await supabase.from('agents').delete().eq('agent_id', agent_id);
+
+    if (dbError) {
+      console.error('Supabase delete error:', dbError);
+      return NextResponse.json({ error: 'Agent deleted in ElevenLabs but failed in DB' }, { status: 500 });
+    }
+
+    return NextResponse.json({ message: 'Agent deleted successfully' });
+  } catch (error) {
+    console.error('Internal DELETE error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

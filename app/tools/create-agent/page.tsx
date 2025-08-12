@@ -1,16 +1,23 @@
-
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { supabase } from '@/lib/supabase';
 import NotificationPopup from '@/components/NotificationPopup';
+import dynamic from 'next/dynamic';
+
+// Dynamically import Conversation component, disable SSR (same as cons/page.tsx)
+const Conversation = dynamic(
+  () => import('@/components/conversation').then(mod => mod.Conversation),
+  { ssr: false }
+);
 
 type Agent = {
   agent_id: string;
   name: string;
   created_by: string;
   created_at: string;
+  prompt?: string; // add prompt to type to pass it to Conversation
 };
 
 export default function AgentsPage() {
@@ -23,6 +30,9 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const [selectedVoiceId, setSelectedVoiceId] = useState('');
+
+  // New state for showing conversation modal
+  const [activeAgent, setActiveAgent] = useState<Agent | null>(null);
 
   const fetchAgents = async () => {
     try {
@@ -65,12 +75,15 @@ export default function AgentsPage() {
 
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || 'Failed to create agent');
+        throw new Error(error.error || 'Failed to create agent');
       }
 
       const newAgent = await res.json();
 
-      // ✅ Add new agent to list immediately
+      // Add prompt to newAgent so we can pass it to conversation
+      newAgent.prompt = systemPrompt;
+
+      // Add new agent to list immediately
       setAgents((prev) => [newAgent, ...prev]);
 
       setAgentName('');
@@ -94,13 +107,62 @@ export default function AgentsPage() {
     setShowPopup(false);
   };
 
+  // Open conversation modal for selected agent
+  const openConversation = (agent: Agent) => {
+    setActiveAgent(agent);
+  };
+
+  // Close conversation modal
+  const closeConversation = () => {
+    setActiveAgent(null);
+  };
+  const deleteAgent = async (agent_id: string) => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this agent?");
+    if (!confirmDelete) return;
+  
+    try {
+      // 1. Delete from Supabase
+      const { error: supabaseError } = await supabase
+        .from("agents")
+        .delete()
+        .eq("agent_id", agent_id);
+  
+      if (supabaseError) {
+        console.error("Supabase delete error:", supabaseError);
+        alert("Failed to delete from database.");
+        return;
+      }
+  
+      // 2. Delete from ElevenLabs
+      const elevenLabsRes = await fetch(`https://api.elevenlabs.io/v1/agents/${agent_id}`, {
+        method: "DELETE",
+        headers: {
+          "xi-api-key": process.env.ELEVENLABS_API_KEY || ''
+        }
+      });
+  
+      if (!elevenLabsRes.ok) {
+        console.error("ElevenLabs delete failed:", await elevenLabsRes.text());
+        alert("Deleted from DB but failed to delete from ElevenLabs.");
+      }
+  
+      // 3. Remove from UI state
+      setAgents(prevAgents => prevAgents.filter(agent => agent.agent_id !== agent_id));
+  
+      alert("Agent deleted successfully.");
+    } catch (err) {
+      console.error("Error deleting agent:", err);
+      alert("Something went wrong.");
+    }
+  };
+  
   return (
     <div className="min-h-screen p-6 bg-black-100">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Agents</h1>
         <button
           onClick={() => setShowPopup(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          className="bg-gradient-to-r from-purple-400 to-pink-400 text-white px-4 py-2 rounded hover:bg-blue-700"
         >
           + Create Agent
         </button>
@@ -112,6 +174,7 @@ export default function AgentsPage() {
             <th className="text-left py-2 px-4">Agent Name</th>
             <th className="text-left py-2 px-4">Created By</th>
             <th className="text-left py-2 px-4">Created At</th>
+            <th className="text-left py-2 px-4">Action</th> {/* New Action column */}
           </tr>
         </thead>
         <tbody>
@@ -121,6 +184,22 @@ export default function AgentsPage() {
               <td className="py-2 px-4">{agent.created_by}</td>
               <td className="py-2 px-4">
                 {format(new Date(agent.created_at), 'PPP p')}
+              </td>
+              <td className="py-2 px-4">
+                <button
+                  onClick={() => openConversation(agent)}
+                  className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                >
+                  Action
+                </button>
+              </td>
+              <td className="border border-gray-700 p-2">
+                <button
+                  onClick={() => deleteAgent(agent.agent_id)}
+                  className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded"
+                >
+                  Delete
+                </button>
               </td>
             </tr>
           ))}
@@ -194,6 +273,23 @@ export default function AgentsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Conversation Modal */}
+      {activeAgent && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-60 p-4">
+          <div className="bg-gray-900 rounded-lg shadow-lg w-full max-w-3xl h-[90vh] relative">
+            <button
+              onClick={closeConversation}
+              className="absolute top-4 right-4 text-white bg-red-600 px-3 py-1 rounded hover:bg-red-700 z-50"
+            >
+              Close
+            </button>
+
+            {/* Pass agent_id and prompt to Conversation component */}
+            <Conversation agentId={activeAgent.agent_id} />
           </div>
         </div>
       )}

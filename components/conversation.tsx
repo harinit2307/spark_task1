@@ -2,9 +2,12 @@
 
 import { useConversation } from '@elevenlabs/react';
 import { useCallback, useEffect, useState } from 'react';
-import { FaPhoneSlash } from 'react-icons/fa';
 
-export function Conversation() {
+type ConversationProps = {
+  agentId: string;
+};
+
+export function Conversation({ agentId }: ConversationProps) {
   const conversation = useConversation();
   const [startTime, setStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState('00:00');
@@ -39,9 +42,8 @@ export function Conversation() {
 
   const startConversation = useCallback(async () => {
     try {
-      const agentId = process.env.NEXT_PUBLIC_AGENT_ID!;
       if (!agentId) {
-        console.error('Missing NEXT_PUBLIC_AGENT_ID');
+        console.error('Missing agentId');
         return;
       }
       await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -61,7 +63,7 @@ export function Conversation() {
     } catch (err) {
       console.error('Failed to start conversation:', err);
     }
-  }, [conversation, isMuted]);
+  }, [conversation, isMuted, agentId]);
 
   const stopConversation = useCallback(async () => {
     try {
@@ -74,40 +76,74 @@ export function Conversation() {
   }, [conversation]);
 
   return (
-    <div className="flex flex-col justify-center items-center h-full bg-[#0b0b0f] text-white rounded-lg p-6">
+    <div
+      className="flex flex-col justify-center items-center min-h-screen text-white"
+      style={{
+        background: 'linear-gradient(135deg, rgba(17,17,17,1) 0%, rgba(45,6,77,1) 40%, rgba(8,0,255,0.3) 100%)',
+      }}
+    >
+      <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+        Conversational Interface
+      </h1>
+      <p className="text-gray-300 mb-10 text-center max-w-xl">
+        Real-time AI chatbot for natural and interactive conversations.
+      </p>
+
       {/* Timer */}
       <div className="text-3xl text-gray-300 font-semibold mb-6">{elapsedTime}</div>
 
-      {/* Bigger animated circle */}
+      {/* Animated Circle */}
+      <style>{`
+        .outer-circle {
+          border-radius: 50%;
+          background: radial-gradient(circle at 30% 30%, #a855f7, #7e22ce);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          animation: pulse-glow 2s ease-in-out infinite;
+          box-shadow: 0 0 25px rgba(168, 85, 247, 0.8);
+        }
+        .inner-blob {
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(255, 255, 255, 0.25), transparent 70%);
+          width: 85%;
+          height: 85%;
+        }
+        @keyframes pulse-glow {
+          0% { transform: scale(1); box-shadow: 0 0 25px rgba(168, 85, 247, 0.8); }
+          50% { transform: scale(1.08); box-shadow: 0 0 40px rgba(168, 85, 247, 1); }
+          100% { transform: scale(1); box-shadow: 0 0 25px rgba(168, 85, 247, 0.8); }
+        }
+      `}</style>
+
       <div className="mb-6">
         <div className="outer-circle w-[200px] h-[200px]">
-          <div className="inner-blob w-[170px] h-[170px]"></div>
+          <div className="inner-blob"></div>
         </div>
       </div>
 
       {/* Assistant Info */}
       <div className="text-center mb-10">
-        <div className="text-3xl font-bold">Agent</div>
-        <p className="text-lg text-gray-500">Your College assistant</p>
+        <div className="text-3xl font-bold">EchoAI</div>
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-10">
+      <div className="flex items-center gap-6 p-4 bg-[#1f1f1f] rounded-full shadow-lg">
         {/* Language Selector */}
         <div className="relative">
           <button
             onClick={() => setShowLangDropdown((prev) => !prev)}
-            className="w-14 h-14 rounded-full border-2 border-gray-500 overflow-hidden focus:outline-none"
+            className="w-14 h-14 rounded-full border border-gray-500 overflow-hidden focus:outline-none hover:scale-105 transition shadow-md shadow-black/40"
           >
             <img
               src={`https://flagcdn.com/${selectedLang.code}.svg`}
               alt={selectedLang.label}
-              className="w-full h-full"
+              className="w-full h-full object-cover"
             />
           </button>
 
           {showLangDropdown && (
-            <div className="absolute top-16 left-0 bg-white text-black shadow-md rounded-lg overflow-hidden z-10 text-lg">
+            <div className="absolute top-16 left-0 bg-black text-white shadow-lg rounded-lg overflow-hidden z-10 text-lg border border-gray-700 min-w-[160px]">
               {languages.map((lang) => (
                 <button
                   key={lang.code}
@@ -115,38 +151,47 @@ export function Conversation() {
                     setSelectedLang(lang);
                     setShowLangDropdown(false);
                   }}
-                  className="flex items-center gap-3 px-5 py-3 hover:bg-gray-100 w-full text-left"
+                  className="flex items-center gap-3 px-5 py-3 hover:bg-gray-800 w-full text-left transition"
                 >
                   <img
                     src={`https://flagcdn.com/${lang.code}.svg`}
                     alt={lang.label}
                     className="w-6 h-6 rounded-full"
                   />
-                  {lang.label}
+                  <span>{lang.label}</span>
                 </button>
               ))}
             </div>
           )}
         </div>
+        
 
         {/* Mic Button */}
         <button
           onClick={startConversation}
           disabled={conversation.status === 'connected'}
-          className="w-16 h-16 rounded-full flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-2xl transition disabled:opacity-50"
+          className="w-14 h-14 rounded-full flex items-center justify-center bg-gray-700 hover:bg-gray-600 shadow-md shadow-black/40 transition disabled:opacity-50"
         >
-          🎙
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 14a3 3 0 003-3V5a3 3 0 10-6 0v6a3 3 0 003 3z" />
+            <path d="M19 11a7 7 0 01-14 0H3a9 9 0 0018 0h-2z" />
+          </svg>
         </button>
 
         {/* End Call Button */}
         <button
           onClick={stopConversation}
           disabled={conversation.status !== 'connected'}
-          className="w-20 h-20 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-700 shadow-lg disabled:opacity-50 transition"
+          className="w-14 h-14 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-700 shadow-md shadow-black/40 transition disabled:opacity-50"
         >
-          <FaPhoneSlash className="text-white text-3xl" />
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21.3 15.46l-4.6-.92a1 1 0 00-1.04.42l-1.07 1.61a11.94 11.94 0 01-5.18 0l-1.07-1.61a1 1 0 00-1.04-.42l-4.6.92a1 1 0 00-.78 1.09A16.93 16.93 0 0012 19c3.18 0 6.16-.9 8.38-2.45a1 1 0 00-.78-1.09z" />
+          </svg>
         </button>
       </div>
     </div>
   );
 }
+
+
+

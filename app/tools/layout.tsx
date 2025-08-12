@@ -9,9 +9,10 @@ const routes = [
   { label: 'Text to Speech', path: '/tools/dashboard' },
   { label: 'Speech to Text', path: '/tools/speech-to-text' },
   { label: 'Voice Cloning', path: '/tools/voice-cloning' },
-  { label: 'Conversation AI', path: '/tools/convoai' },
-  { label: 'Elevenlabs convo AI', path: '/tools/cons' },
+  { label: 'Conversation Chat', path: '/tools/convoai' },
+  { label: 'Conversational AI', path: '/tools/cons' },
   { label: 'Agents', path: '/tools/create-agent' },
+  {label: 'Knowledge Base', path: '/tools/knowledge-base'}
 ];
 
 export default function ToolLayout({ children }: { children: React.ReactNode }) {
@@ -65,7 +66,6 @@ export default function ToolLayout({ children }: { children: React.ReactNode }) 
                         : 'text-gray-300 hover:bg-gradient-to-r hover:from-purple-500 hover:to-pink-500 hover:text-white'
                     }`}
                 >
-                  {/* Replace with actual icons if needed */}
                   <div className="w-3 h-3 rounded-full bg-white/40" />
                   <span>{route.label}</span>
                 </Link>
