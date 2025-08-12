@@ -1,3 +1,5 @@
+
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -20,7 +22,7 @@ export default function AgentsPage() {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
-  const [selectedVoiceId, setSelectedVoiceId] = useState(''); // Default to empty string or a default voice ID
+  const [selectedVoiceId, setSelectedVoiceId] = useState('');
 
   const fetchAgents = async () => {
     try {
@@ -38,8 +40,7 @@ export default function AgentsPage() {
   }, []);
 
   const handleCreate = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault(); // stop page reload
-
+    if (e) e.preventDefault();
     if (!agentName || !createdBy || !firstMessage || !systemPrompt) {
       alert('Please fill in all fields.');
       return;
@@ -52,6 +53,7 @@ export default function AgentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: agentName,
+          created_by: createdBy,
           first_message: firstMessage,
           prompt: systemPrompt,
           model: 'eleven-multilingual-v1',
@@ -59,8 +61,7 @@ export default function AgentsPage() {
           language: 'en',
           voice_id: selectedVoiceId
         })
-      })
-      
+      });
 
       if (!res.ok) {
         const error = await res.json();
@@ -68,17 +69,10 @@ export default function AgentsPage() {
       }
 
       const newAgent = await res.json();
-      setAgents((prev) => [
-        ...prev,
-        {
-          agent_id: newAgent.agent_id,
-          name: newAgent.name,
-          created_by: createdBy,
-          created_at: new Date().toISOString(),
-        },
-      ]);
 
-      // reset form
+      // ✅ Add new agent to list immediately
+      setAgents((prev) => [newAgent, ...prev]);
+
       setAgentName('');
       setCreatedBy('');
       setFirstMessage('');
@@ -133,7 +127,6 @@ export default function AgentsPage() {
         </tbody>
       </table>
 
-      {/* Popup */}
       {showPopup && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-md w-full max-w-md">
@@ -173,15 +166,15 @@ export default function AgentsPage() {
               <select
                 value={selectedVoiceId}
                 onChange={(e) => setSelectedVoiceId(e.target.value)}
-                className="w-full border border-gray-300 p-2 mb-3 rounded bg-white"
+                className="w-full border border-gray-300 p-2 mb-3 rounded text-gray-400"
                 required
               >
                 <option value="">Select a voice</option>
-                <option value="21m00Tcm4TlvDq8ikWAM">Rachel (Female, English)</option>
-                <option value="AZnzlk1XvdvUeBnXmlld">Domi (Female, English)</option>
-                <option value="EXAVITQu4vr4xnSDxMaL">Bella (Female, English)</option>
-                <option value="ErXwobaYiN019PkySvjV">Antoni (Male, English)</option>
-                <option value="MF3mGyEYCl7XYWbV9V6O">Elli (Female, English)</option>
+                <option value="21m00Tcm4TlvDq8ikWAM">Rachel</option>
+                <option value="AZnzlk1XvdvUeBnXmlld">Domi</option>
+                <option value="EXAVITQu4vr4xnSDxMaL">Bella</option>
+                <option value="ErXwobaYiN019PkySvjV">Antoni</option>
+                <option value="MF3mGyEYCl7XYWbV9V6O">Elli</option>
               </select>
 
               <div className="flex justify-end gap-2 mt-4">
@@ -192,7 +185,6 @@ export default function AgentsPage() {
                 >
                   Decline
                 </button>
-
                 <button
                   type="submit"
                   className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
@@ -206,7 +198,6 @@ export default function AgentsPage() {
         </div>
       )}
 
-      {/* Notification */}
       <NotificationPopup
         show={showNotification}
         agentName={agentName}

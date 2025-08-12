@@ -2,6 +2,7 @@
 
 import { useConversation } from '@elevenlabs/react';
 import { useCallback, useEffect, useState } from 'react';
+import { FaPhoneSlash } from 'react-icons/fa';
 
 export function Conversation() {
   const conversation = useConversation();
@@ -22,10 +23,9 @@ export function Conversation() {
     { code: 'in', label: 'Hindi' },
   ];
 
-  // Update timer every second
+  // Timer updater
   useEffect(() => {
     let interval: NodeJS.Timeout;
-
     if (conversation.status === 'connected' && startTime) {
       interval = setInterval(() => {
         const seconds = Math.floor((Date.now() - startTime) / 1000);
@@ -34,7 +34,6 @@ export function Conversation() {
         setElapsedTime(`${mins}:${secs}`);
       }, 1000);
     }
-
     return () => clearInterval(interval);
   }, [conversation.status, startTime]);
 
@@ -45,21 +44,15 @@ export function Conversation() {
         console.error('Missing NEXT_PUBLIC_AGENT_ID');
         return;
       }
-
       await navigator.mediaDevices.getUserMedia({ audio: true });
-
       await conversation.startSession({
         agentId,
         connectionType: 'websocket',
-        onConnect: () => {
-          setStartTime(Date.now());
-        },
+        onConnect: () => setStartTime(Date.now()),
         onDisconnect: () => {
           setStartTime(null);
           setElapsedTime('00:00');
         },
-        onMessage: (msg) => console.log('Message:', msg),
-        onError: (msg, ctx) => console.error('Error:', msg, ctx),
         onAudio: (audioData) => {
           const audio = new Audio(audioData);
           if (!isMuted) audio.play();
@@ -81,81 +74,78 @@ export function Conversation() {
   }, [conversation]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-[320px] relative p-6 bg-white rounded-2xl shadow-lg flex flex-col items-center text-center border border-gray-200">
-        {/* Timer */}
-        <div className="absolute top-3 left-1/2 transform -translate-x-1/2 text-xs text-gray-500 font-medium">
-          {elapsedTime}
+    <div className="flex flex-col justify-center items-center h-full bg-[#0b0b0f] text-white rounded-lg p-6">
+      {/* Timer */}
+      <div className="text-3xl text-gray-300 font-semibold mb-6">{elapsedTime}</div>
+
+      {/* Bigger animated circle */}
+      <div className="mb-6">
+        <div className="outer-circle w-[200px] h-[200px]">
+          <div className="inner-blob w-[170px] h-[170px]"></div>
         </div>
+      </div>
 
-      {/* Blue rotating disc like ElevenLabs */}
-<div className="outer-circle">
-  <div className="inner-blob"></div>
-</div>
+      {/* Assistant Info */}
+      <div className="text-center mb-10">
+        <div className="text-3xl font-bold">Agent</div>
+        <p className="text-lg text-gray-500">Your College assistant</p>
+      </div>
 
-
-
-
-        {/* Assistant title */}
-        <div className="text-xl font-bold text-black">Agent</div>
-        <p className="text-sm text-gray-500 mb-2">Your College assistant</p>
-
-        {/* Controls */}
-        <div className="flex items-center gap-6 mt-2 relative">
-          {/* Flag with dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowLangDropdown((prev) => !prev)}
-              className="w-8 h-8 rounded-full border border-gray-300 overflow-hidden focus:outline-none"
-            >
-              <img
-                src={`https://flagcdn.com/${selectedLang.code}.svg`}
-                alt={selectedLang.label}
-                className="w-full h-full"
-              />
-            </button>
-
-            {showLangDropdown && (
-              <div className="absolute top-10 left-0 bg-white text-black shadow-md rounded-lg overflow-hidden z-10">
-                {languages.map((lang) => (
-                  <button
-                    key={lang.code}
-                    onClick={() => {
-                      setSelectedLang(lang);
-                      setShowLangDropdown(false);
-                    }}
-                    className="flex items-center gap-1 px-5 py-2 hover:bg-gray-100 w-full text-left"
-                  >
-                    <img
-                      src={`https://flagcdn.com/${lang.code}.svg`}
-                      alt={lang.label}
-                      className="w-5 h-5 rounded-full"
-                    />
-                    {lang.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Mic button */}
+      {/* Controls */}
+      <div className="flex items-center gap-10">
+        {/* Language Selector */}
+        <div className="relative">
           <button
-            onClick={startConversation}
-            disabled={conversation.status === 'connected'}
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-200 hover:bg-gray-300 transition"
+            onClick={() => setShowLangDropdown((prev) => !prev)}
+            className="w-14 h-14 rounded-full border-2 border-gray-500 overflow-hidden focus:outline-none"
           >
-            <span className="text-black text-lg">🎙️</span>
+            <img
+              src={`https://flagcdn.com/${selectedLang.code}.svg`}
+              alt={selectedLang.label}
+              className="w-full h-full"
+            />
           </button>
 
-          {/* Professional End call button */}
-          <button
-            onClick={stopConversation}
-            disabled={conversation.status !== 'connected'}
-            className="px-4 py-2 rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold shadow-md hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-          >
-            End Call
-          </button>
+          {showLangDropdown && (
+            <div className="absolute top-16 left-0 bg-white text-black shadow-md rounded-lg overflow-hidden z-10 text-lg">
+              {languages.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => {
+                    setSelectedLang(lang);
+                    setShowLangDropdown(false);
+                  }}
+                  className="flex items-center gap-3 px-5 py-3 hover:bg-gray-100 w-full text-left"
+                >
+                  <img
+                    src={`https://flagcdn.com/${lang.code}.svg`}
+                    alt={lang.label}
+                    className="w-6 h-6 rounded-full"
+                  />
+                  {lang.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Mic Button */}
+        <button
+          onClick={startConversation}
+          disabled={conversation.status === 'connected'}
+          className="w-16 h-16 rounded-full flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-2xl transition disabled:opacity-50"
+        >
+          🎙
+        </button>
+
+        {/* End Call Button */}
+        <button
+          onClick={stopConversation}
+          disabled={conversation.status !== 'connected'}
+          className="w-20 h-20 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-700 shadow-lg disabled:opacity-50 transition"
+        >
+          <FaPhoneSlash className="text-white text-3xl" />
+        </button>
       </div>
     </div>
   );

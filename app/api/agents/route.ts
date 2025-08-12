@@ -1,32 +1,61 @@
-import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest) {
+
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+// ✅ GET: Fetch all agents from Supabase
+export async function GET() {
+  try {
+    const { data, error } = await supabase
+      .from('agents')
+      .select('*') // fetch ALL columns
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Supabase fetch error:', error);
+      return NextResponse.json({ error: 'Failed to fetch agents' }, { status: 500 });
+    }
+
+    return NextResponse.json({ agents: data || [] });
+  } catch (err) {
+    console.error('Internal GET error:', err);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+// ✅ POST: Create a new agent
+export async function POST(req: Request) {
   try {
     const body = await req.json();
 
+    if (!body.name || !body.created_by) {
+      return NextResponse.json({ error: 'Missing name or created_by' }, { status: 400 });
+    }
+
+    const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+    if (!ELEVENLABS_API_KEY) {
+      return NextResponse.json({ error: 'Missing ELEVENLABS_API_KEY' }, { status: 500 });
+    }
+
+    // Create agent in ElevenLabs
     const payload = {
-      name: body.name, // ✅ Agent name
-      voice: {
-        voice_id: body.voice_id || 'EXAVITQu4vr4xnSDxMaL',
-      },
+      name: body.name,
+      voice: { voice_id: body.voice_id || 'EXAVITQu4vr4xnSDxMaL' },
       conversation_config: {
         agent: {
-          first_message: body.first_message, // ✅ First message in UI
+          first_message: body.first_message,
           prompt: {
-            prompt: body.prompt, // ✅ System prompt in UI
-            llm: {
-              model: body.model || 'eleven-multilingual-v1',
-              temperature: body.temperature ?? 0.7,
-            },
+            prompt: body.prompt,
+            llm: { model: body.model || 'eleven-multilingual-v1', temperature: body.temperature ?? 0.7 }
           },
           language: body.language || 'en',
         },
-        tts: {
-          audio_format: {
-            format: 'pcm',
-            sample_rate: 16000,
-          },
-        },
+        tts: { audio_format: { format: 'pcm', sample_rate: 16000 } },
       },
     };
 
@@ -34,25 +63,47 @@ export async function POST(req: NextRequest) {
       'https://api.elevenlabs.io/v1/convai/agents/create',
       {
         method: 'POST',
-        headers: {
-          'xi-api-key': process.env.ELEVENLABS_API_KEY!,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       }
     );
 
+    const text = await response.text();
     if (!response.ok) {
-      const error = await response.text();
-      return NextResponse.json({ error }, { status: response.status });
+      return NextResponse.json({ error: 'ElevenLabs API failed', details: text }, { status: response.status });
     }
 
-    const data = await response.json();
-    return NextResponse.json(data);
+    const data = JSON.parse(text);
+
+    // Store in Supabase
+    const { error: dbError } = await supabase.from('agents').insert([
+      {
+        agent_id: data.agent_id,
+        name: body.name,
+        created_by: body.created_by,
+        first_message: body.first_message,
+        prompt: body.prompt,
+        voice_id: body.voice_id,
+        created_at: new Date().toISOString(),
+      }
+    ]);
+
+    if (dbError) {
+      console.error('Supabase insert error:', dbError);
+      return NextResponse.json({ error: 'Agent created but DB insert failed' }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      agent_id: data.agent_id,
+      name: body.name,
+      created_by: body.created_by,
+      first_message: body.first_message,
+      prompt: body.prompt,
+      voice_id: body.voice_id,
+      created_at: new Date().toISOString(),
+    });
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Internal Server Error', detail: String(error) },
-      { status: 500 }
-    );
+    console.error('Internal POST error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
