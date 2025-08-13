@@ -175,6 +175,7 @@ export default function AgentsPage() {
             <th className="text-left py-2 px-4">Created By</th>
             <th className="text-left py-2 px-4">Created At</th>
             <th className="text-left py-2 px-4">Action</th> {/* New Action column */}
+            
           </tr>
         </thead>
         <tbody>
@@ -183,24 +184,26 @@ export default function AgentsPage() {
               <td className="py-2 px-4">{agent.name}</td>
               <td className="py-2 px-4">{agent.created_by}</td>
               <td className="py-2 px-4">
-                {format(new Date(agent.created_at), 'PPP p')}
+              {format(new Date(agent.created_at), 'dd/MM/yyyy HH:mm')}
               </td>
-              <td className="py-2 px-4">
-                <button
-                  onClick={() => openConversation(agent)}
-                  className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
-                >
-                  Action
-                </button>
-              </td>
-              <td className="border border-gray-700 p-2">
-                <button
-                  onClick={() => deleteAgent(agent.agent_id)}
-                  className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded"
-                >
-                  Delete
-                </button>
-              </td>
+              <td className="py-2 px-1">
+  <div className="flex items-center gap-2">
+    <button
+      onClick={() => openConversation(agent)}
+      className="bg-gradient-to-r from-purple-400 to-pink-400 text-white px-3 py-1 rounded hover:bg-green-700"
+    >
+      Chat
+    </button>
+
+    <button
+      onClick={() => deleteAgent(agent.agent_id)}
+      className="px-2 py-1 bg-red-600 hover:bg-red-700 rounded"
+    >
+      🗑
+    </button>
+  </div>
+</td>
+
             </tr>
           ))}
         </tbody>
@@ -289,7 +292,7 @@ export default function AgentsPage() {
             </button>
 
             {/* Pass agent_id and prompt to Conversation component */}
-            <Conversation agentId={activeAgent.agent_id} />
+            <Conversation agentId={activeAgent.agent_id} agentName={activeAgent.name}/>
           </div>
         </div>
       )}

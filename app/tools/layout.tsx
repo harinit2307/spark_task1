@@ -8,11 +8,9 @@ import { Menu } from 'lucide-react';
 const routes = [
   { label: 'Text to Speech', path: '/tools/dashboard' },
   { label: 'Speech to Text', path: '/tools/speech-to-text' },
-  { label: 'Voice Cloning', path: '/tools/voice-cloning' },
   { label: 'Conversation Chat', path: '/tools/convoai' },
-  { label: 'Conversational AI', path: '/tools/cons' },
   { label: 'Agents', path: '/tools/create-agent' },
-  {label: 'Knowledge Base', path: '/tools/knowledge-base'}
+  { label: 'Knowledge Base', path: '/tools/knowledge-base' }
 ];
 
 export default function ToolLayout({ children }: { children: React.ReactNode }) {
@@ -39,13 +37,15 @@ export default function ToolLayout({ children }: { children: React.ReactNode }) 
       >
         <div>
           {/* Top Section with Burger */}
-          <div className="flex items-center justify-between px-4 py-4">
+          <div className="flex items-center justify-between px-4 py-5">
             {sidebarOpen && (
-              <div className="text-2xl font-extrabold tracking-tight text-white">VoiceFlow Tools</div>
+              <div className="text-xl font-bold tracking-tight text-white whitespace-nowrap overflow-hidden truncate flex-shrink-0 pr-4">
+                AI Interaction Tools
+              </div>
             )}
             <button
               onClick={toggleSidebar}
-              className="text-white p-1 hover:bg-white/10 rounded"
+              className="text-white p-2 hover:bg-white/10 rounded flex-shrink-0"
               title="Toggle Sidebar"
             >
               <Menu size={20} />
@@ -54,7 +54,7 @@ export default function ToolLayout({ children }: { children: React.ReactNode }) 
 
           {/* Navigation */}
           {sidebarOpen && (
-            <nav className="space-y-2 px-4 mt-6">
+            <nav className="space-y-2 px-4 mt-4">
               {routes.map((route) => (
                 <Link
                   key={route.path}

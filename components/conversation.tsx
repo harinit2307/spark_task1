@@ -5,9 +5,10 @@ import { useCallback, useEffect, useState } from 'react';
 
 type ConversationProps = {
   agentId: string;
+  agentName: string; // new
 };
 
-export function Conversation({ agentId }: ConversationProps) {
+export function Conversation({ agentId, agentName }: ConversationProps) {
   const conversation = useConversation();
   const [startTime, setStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState('00:00');
@@ -122,13 +123,14 @@ export function Conversation({ agentId }: ConversationProps) {
         </div>
       </div>
 
-      {/* Assistant Info */}
-      <div className="text-center mb-10">
-        <div className="text-3xl font-bold">EchoAI</div>
+      {/* Agent Info */}
+      <div className="text-center mt-4">
+        <p className="text-xl font-semibold">{agentName}</p>
+        <p className="text-sm text-gray-400">ID: {agentId}</p>
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-6 p-4 bg-[#1f1f1f] rounded-full shadow-lg">
+      <div className="flex items-center gap-6 p-4 bg-[#1f1f1f] rounded-full shadow-lg mt-8">
         {/* Language Selector */}
         <div className="relative">
           <button
@@ -165,7 +167,6 @@ export function Conversation({ agentId }: ConversationProps) {
           )}
         </div>
         
-
         {/* Mic Button */}
         <button
           onClick={startConversation}
@@ -192,6 +193,3 @@ export function Conversation({ agentId }: ConversationProps) {
     </div>
   );
 }
-
-
-
