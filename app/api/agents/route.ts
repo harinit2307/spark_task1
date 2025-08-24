@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     }
 
     // Create agent in ElevenLabs
-    const payload = {
+    const payload: any = {
       name: body.name,
       voice: { voice_id: body.voice_id || 'EXAVITQu4vr4xnSDxMaL' },
       conversation_config: {
@@ -52,11 +52,12 @@ export async function POST(req: Request) {
             llm: { model: body.model || 'eleven-multilingual-v1', temperature: body.temperature ?? 0.7 }
           },
           language: body.language || 'en',
+          ...(body.knowledge_base ? { knowledge_base: { document_ids: body.knowledge_base.document_ids } } : {}),
         },
         tts: { audio_format: { format: 'pcm', sample_rate: 16000 } },
       },
     };
-
+    
     const response = await fetch(
       'https://api.elevenlabs.io/v1/convai/agents/create',
       {

@@ -1,14 +1,15 @@
+// app/api/knowledge-base/[id]/route.ts
 import { NextResponse } from "next/server";
 
 export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  try {
-    const { id } = params;
+  const { id } = params;
 
+  try {
     const res = await fetch(
-      `https://api.elevenlabs.io/v1/convai/knowledge-base/${id}`,
+      `https://api.elevenlabs.io/v1/convai/knowledge-base/${id}/content`,
       {
         method: "GET",
         headers: {
@@ -18,26 +19,19 @@ export async function GET(
     );
 
     if (!res.ok) {
+      const errorText = await res.text();
       return NextResponse.json(
-        { error: "Failed to fetch document" },
+        { error: "Failed to fetch document content", details: errorText },
         { status: res.status }
       );
     }
 
-    const data = await res.json();
-
-    // Map ElevenLabs response into a shape your UI expects
-    const transformed = {
-      id: data.id,
-      name: data.name,
-      content: data.content || data.text || "No content returned by API",
-      metadata: data.metadata,
-    };
-
-    return NextResponse.json(transformed);
-  } catch (err) {
+    const content = await res.text(); // 👈 get the full text content
+    return NextResponse.json({ id, content });
+  } catch (err: any) {
+    console.error("Error fetching document content:", err);
     return NextResponse.json(
-      { error: "Something went wrong" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

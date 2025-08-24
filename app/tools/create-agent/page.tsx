@@ -62,22 +62,25 @@ export default function AgentsPage() {
 
   const fetchDocuments = async () => {
     try {
-      const res = await fetch('/api/tools/knowledge-base');
+      const res = await fetch('/api/knowledge-base'); // fix path
       if (res.ok) {
         const data = await res.json();
-        setDocuments(data.documents || []);
+        // make sure the response is an array
+        setDocuments(Array.isArray(data) ? data : data.documents || []);
       }
     } catch (err) {
       console.error('Error fetching documents:', err);
     }
   };
+  
 
   const handleCreate = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!agentName || !createdBy || !firstMessage || !systemPrompt) {
+    if (!agentName || !createdBy || !firstMessage || (!useKnowledgeBase && !systemPrompt)) {
       alert('Please fill in all fields.');
       return;
     }
+    
 
     setLoading(true);
     try {
@@ -95,6 +98,8 @@ export default function AgentsPage() {
       if (useKnowledgeBase && selectedDocuments.length > 0) {
         payload.knowledge_base = { document_ids: selectedDocuments };
       }
+      
+      
 
       const res = await fetch('/api/agents', {
         method: 'POST',
@@ -245,6 +250,8 @@ export default function AgentsPage() {
                 value={agentName}
                 onChange={(e) => setAgentName(e.target.value)}
               />
+              {/* Conditionally show System Prompt */}
+  
               <input
                 type="text"
                 placeholder="Created By"
@@ -258,12 +265,19 @@ export default function AgentsPage() {
                 value={firstMessage}
                 onChange={(e) => setFirstMessage(e.target.value)}
               />
-              <textarea
-                placeholder="System Prompt"
-                className="w-full bg-black/20 border border-purple-500/30 p-2 mb-3 rounded text-white"
-                value={systemPrompt}
-                onChange={(e) => setSystemPrompt(e.target.value)}
-              />
+              {/* Conditionally show System Prompt */}
+  {!useKnowledgeBase && (
+    <div className="mb-3">
+      <label className="block mb-1 text-sm text-gray-300">System Prompt</label>
+      <textarea
+        className="w-full p-2 rounded bg-black/20 text-gray-100"
+        value={systemPrompt}
+        onChange={(e) => setSystemPrompt(e.target.value)}
+        placeholder="Enter system prompt..."
+      />
+    </div>
+  )}
+
               <select
                 value={selectedVoiceId}
                 onChange={(e) => setSelectedVoiceId(e.target.value)}
@@ -279,38 +293,39 @@ export default function AgentsPage() {
               </select>
 
               {/* Knowledge Base Option */}
-              <div className="mb-3">
-                <label className="flex items-center gap-2 text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={useKnowledgeBase}
-                    onChange={(e) => setUseKnowledgeBase(e.target.checked)}
-                    className="rounded"
-                  />
-                  Use Knowledge Base
-                </label>
-              </div>
+<div className="mb-3">
+  <label className="flex items-center gap-2 text-gray-300">
+    <input
+      type="checkbox"
+      checked={useKnowledgeBase}
+      onChange={(e) => setUseKnowledgeBase(e.target.checked)}
+      className="rounded"
+    />
+    Use Knowledge Base
+  </label>
+</div>
 
-              {useKnowledgeBase && (
-                <div className="mb-3 max-h-32 overflow-y-auto border border-purple-500/30 rounded p-2 bg-black/20">
-                  <p className="text-sm text-gray-400 mb-2">Select documents:</p>
-                  {documents.length === 0 ? (
-                    <p className="text-sm text-gray-500">No documents available</p>
-                  ) : (
-                    documents.map((doc) => (
-                      <label key={doc.id} className="flex items-center gap-2 text-sm mb-1 text-gray-300">
-                        <input
-                          type="checkbox"
-                          checked={selectedDocuments.includes(doc.id)}
-                          onChange={() => handleDocumentSelection(doc.id)}
-                          className="rounded"
-                        />
-                        {doc.name} ({doc.type})
-                      </label>
-                    ))
-                  )}
-                </div>
-              )}
+{useKnowledgeBase && (
+  <div className="mb-3 max-h-32 overflow-y-auto border border-purple-500/30 rounded p-2 bg-black/20">
+    <p className="text-sm text-gray-400 mb-2">Select documents:</p>
+    {documents.length === 0 ? (
+      <p className="text-sm text-gray-500">No documents available</p>
+    ) : (
+      documents.map((doc) => (
+        <label key={doc.id} className="flex items-center gap-2 text-sm mb-1 text-gray-300">
+          <input
+            type="checkbox"
+            checked={selectedDocuments.includes(doc.id)}
+            onChange={() => handleDocumentSelection(doc.id)}
+            className="rounded"
+          />
+          {doc.name} ({doc.type})
+        </label>
+      ))
+    )}
+  </div>
+)}
+
 
               <div className="flex justify-end gap-2 mt-4">
                 <button

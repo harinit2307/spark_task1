@@ -169,7 +169,7 @@ export default function KnowledgeBasePage() {
 
       {/* Documents list */}
       <h2 className="text-xl font-semibold mt-8 mb-4">Uploaded Documents</h2>
-      <div className="bg-white border rounded-lg shadow">
+      <div className="bg-black border rounded-lg shadow">
         <div className="grid grid-cols-3 font-semibold bg-gray-100 px-4 py-2">
           <div>Name</div>
           <div>Created By</div>
