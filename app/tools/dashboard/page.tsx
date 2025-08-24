@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 const LANGS = [
@@ -18,11 +18,15 @@ const LANGS = [
   { label: 'Italian', code: 'it' },
   { label: 'Tamil', code: 'ta' },
 ];
+
 const supabase = createClient();
 
 export default function TextToSpeechPage() {
   const [text, setText] = useState('');
   const [lang, setLang] = useState('en');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [ttsHistory, setTtsHistory] = useState<any[]>([]);
   const [popupText, setPopupText] = useState<string | null>(null);
@@ -32,6 +36,17 @@ export default function TextToSpeechPage() {
   const [totalCount, setTotalCount] = useState(0);
   const pageSize = 1;
   const totalPages = Math.ceil(totalCount / pageSize);
+
+  // close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const handleSpeak = async () => {
     if (!text.trim()) return alert('Enter text');
@@ -66,18 +81,14 @@ export default function TextToSpeechPage() {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    const { data, count, error } = await supabase
+    const { data, count } = await supabase
       .from('tts_history')
       .select('id, input_text, translated, lang, audio_path', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(from, to);
 
-    if (error) {
-      console.error('Fetch error:', error.message);
-    } else {
-      setTtsHistory(data || []);
-      setTotalCount(count || 0);
-    }
+    setTtsHistory(data || []);
+    setTotalCount(count || 0);
   };
 
   const confirmDelete = (id: string, audioPath: string) => {
@@ -87,42 +98,17 @@ export default function TextToSpeechPage() {
 
   const deleteNow = async () => {
     if (!confirmDeleteId || !confirmDeleteAudioPath) return;
-
     try {
       const filePath = decodeURIComponent(confirmDeleteAudioPath.split('/tts-audio/')[1] || '');
-
-      const { error: dbError } = await supabase
-        .from('tts_history')
-        .delete()
-        .eq('id', confirmDeleteId);
-
-      if (!filePath) {
-        alert('Invalid file path.');
-        return;
+      await supabase.from('tts_history').delete().eq('id', confirmDeleteId);
+      if (filePath) {
+        await supabase.storage.from('tts-audio').remove([filePath]);
       }
-
-      const { error: storageError } = await supabase.storage
-        .from('tts-audio')
-        .remove([filePath]);
-
-      if (storageError) {
-        console.error('Storage deletion failed:', storageError.message);
-        alert('Failed to delete audio file.');
-        return;
-      }
-
-      if (dbError) {
-        console.error('DB deletion failed:', dbError.message);
-        alert('Failed to delete record.');
-        return;
-      }
-
       setConfirmDeleteId(null);
       setConfirmDeleteAudioPath(null);
       fetchTtsHistory();
-    } catch (err: any) {
-      console.error('Deletion error:', err.message || err);
-      alert('Unexpected error deleting.');
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -149,14 +135,12 @@ export default function TextToSpeechPage() {
   };
 
   return (
-    <div className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-10 bg-gradient-to-br from-purple via-black to-blue-900 text-white">
+    <div className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-10 bg-[#111] text-white">
       <div className="w-full max-w-3xl text-center mb-10">
         <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
           Text to Speech
         </h1>
-        <p className="text-gray-400 mt-2">
-          Generate speech from your text using ElevenLabs-style UI
-        </p>
+        <p className="text-gray-400 mt-2">Generate speech from your text using ElevenLabs-style UI</p>
       </div>
 
       <div className="w-full max-w-2xl bg-[#111] border border-gray-800 rounded-2xl shadow-lg p-8 space-y-6">
@@ -168,22 +152,40 @@ export default function TextToSpeechPage() {
         />
 
         <div className="flex flex-wrap gap-4 justify-between items-center">
-          <select
-            className="bg-gray-800 text-white px-4 py-2 rounded-lg border border-gray-700"
-            value={lang}
-            onChange={(e) => setLang(e.target.value)}
-          >
-            {LANGS.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.label}
-              </option>
-            ))}
-          </select>
+          {/* Custom Gradient Dropdown */}
+          <div className="relative w-48" ref={dropdownRef}>
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="w-full px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg shadow-md flex justify-between items-center"
+            >
+              {getLangLabel(lang)} <span>▼</span>
+            </button>
+            {dropdownOpen && (
+              <div className="absolute mt-2 w-full bg-[#111] border border-gray-700 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                {LANGS.map((l) => (
+                  <div
+                    key={l.code}
+                    onClick={() => {
+                      setLang(l.code);
+                      setDropdownOpen(false);
+                    }}
+                    className={`px-4 py-2 cursor-pointer ${
+                      lang === l.code
+                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                        : 'hover:bg-gradient-to-r hover:from-purple-600 hover:to-pink-600'
+                    }`}
+                  >
+                    {l.label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="flex gap-4">
             <button
               onClick={handleSpeak}
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
+              className="px-6 py-3 bg-gradient-to-r from-purple-400 to-pink-400 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
             >
               🔊 Generate Speech
             </button>
@@ -191,7 +193,7 @@ export default function TextToSpeechPage() {
             {audioUrl && (
               <button
                 onClick={handleDownload}
-                className="px-6 py-3 bg-green-600 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
+                className="px-6 py-3 bg-gradient-to-r from-green-400 to-emerald-500 text-white font-semibold rounded-xl shadow-md hover:scale-105 transition"
               >
                 ⬇ Download
               </button>
@@ -207,6 +209,7 @@ export default function TextToSpeechPage() {
         )}
       </div>
 
+      {/* History Section */}
       <div className="w-full max-w-4xl mt-10 bg-[#111] p-6 rounded-xl shadow-xl">
         <h2 className="text-xl font-semibold mb-4 text-center">TTS History</h2>
         <div className="overflow-x-auto">
@@ -231,29 +234,42 @@ export default function TextToSpeechPage() {
                   <tr key={row.id || index} className="bg-gray-900">
                     <td className="border px-4 py-2">{(page - 1) * pageSize + index + 1}</td>
                     <td className="border px-4 py-2">{row.input_text}</td>
-                    <td className="border px-4 py-2">{getLangLabel(row.lang)}</td>
-                    <td className="border px-4 py-2 flex flex-wrap justify-center gap-2">
+                    <td className="border px-4 py-2">
+                      <span className="font-semibold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                        {getLangLabel(row.lang)}
+                      </span>
+                    </td>
+                    <td className="border px-4 py-2 flex flex-wrap justify-center gap-4">
                       {row.audio_path && (
                         <button
                           onClick={() => new Audio(row.audio_path).play()}
-                          className="text-blue-400 hover:underline"
+                          className="flex items-center gap-1 hover:underline"
                         >
-                          ▶ Play
+                          <span className="text-white">▶</span>
+                          <span className="font-semibold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                            Play
+                          </span>
                         </button>
                       )}
                       {row.translated && (
                         <button
                           onClick={() => setPopupText(row.translated)}
-                          className="text-yellow-400 hover:underline"
+                          className="flex items-center gap-1 hover:underline"
                         >
-                          💬 Translated
+                          💬{' '}
+                          <span className="font-semibold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                            Translated
+                          </span>
                         </button>
                       )}
                       <button
                         onClick={() => confirmDelete(row.id, row.audio_path)}
-                        className="text-red-400 hover:underline"
+                        className="flex items-center gap-1 hover:underline"
                       >
-                        🗑 Delete
+                        🗑{' '}
+                        <span className="font-semibold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+                          Delete
+                        </span>
                       </button>
                     </td>
                   </tr>
@@ -263,36 +279,42 @@ export default function TextToSpeechPage() {
           </table>
         </div>
 
-        <div className="flex justify-center mt-4 gap-1 flex-wrap">
-          <button
-            onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-            className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
-            disabled={page === 1}
-          >
-            ⬅
-          </button>
-          {getPaginationNumbers().map((num, idx) => (
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex justify-center mt-4 gap-2 flex-wrap">
             <button
-              key={idx}
-              onClick={() => typeof num === 'number' && setPage(num)}
-              className={`px-3 py-1 rounded ${
-                page === num ? 'bg-white text-black' : 'bg-gray-800 text-white'
-              } ${typeof num !== 'number' && 'cursor-default'}`}
-              disabled={typeof num !== 'number'}
+              onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+              disabled={page === 1}
+              className="px-3 py-1 rounded bg-gradient-to-r from-purple-400 to-pink-400 text-white disabled:opacity-50"
             >
-              {num}
+              ⬅
             </button>
-          ))}
-          <button
-            onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-            className="px-3 py-1 bg-gray-700 text-white rounded disabled:opacity-50"
-            disabled={page === totalPages}
-          >
-            ➡
-          </button>
-        </div>
+            {getPaginationNumbers().map((num, idx) => (
+              <button
+                key={idx}
+                onClick={() => typeof num === 'number' && setPage(num)}
+                className={`px-3 py-1 rounded ${
+                  page === num
+                    ? 'bg-gradient-to-r from-purple-400 to-pink-400 text-white'
+                    : 'bg-gray-800 text-white'
+                } ${typeof num !== 'number' && 'cursor-default'}`}
+                disabled={typeof num !== 'number'}
+              >
+                {num}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={page === totalPages}
+              className="px-3 py-1 rounded bg-gradient-to-r from-purple-400 to-pink-400 text-white disabled:opacity-50"
+            >
+              ➡
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* Popup for Translated Text */}
       {popupText && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-gray-900 border border-purple-600 text-white p-6 rounded-xl max-w-md w-full">
@@ -300,7 +322,7 @@ export default function TextToSpeechPage() {
             <p className="mb-4 max-h-60 overflow-y-auto">{popupText}</p>
             <button
               onClick={() => setPopupText(null)}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+              className="px-4 py-2 bg-gradient-to-r from-purple-400 to-pink-400 text-white rounded-lg hover:scale-105"
             >
               Close
             </button>
@@ -308,6 +330,7 @@ export default function TextToSpeechPage() {
         </div>
       )}
 
+      {/* Delete Confirmation */}
       {confirmDeleteId && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-gray-900 p-6 rounded-xl max-w-md w-full text-white text-center">
@@ -316,7 +339,7 @@ export default function TextToSpeechPage() {
             <div className="flex justify-center gap-4">
               <button
                 onClick={deleteNow}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded"
+                className="px-4 py-2 bg-gradient-to-r from-purple-400 to-pink-400 text-white rounded hover:scale-105"
               >
                 Yes, Delete
               </button>

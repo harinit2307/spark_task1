@@ -5,10 +5,10 @@ import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import NotificationPopup from '@/components/NotificationPopup';
 import dynamic from 'next/dynamic';
+import { MessageCircle, Trash2 } from 'lucide-react';
 
-// Dynamically import Conversation component, disable SSR (same as cons/page.tsx)
 const Conversation = dynamic(
-  () => import('@/components/conversation').then(mod => mod.Conversation),
+  () => import('@/components/conversation').then((mod) => mod.Conversation),
   { ssr: false }
 );
 
@@ -17,8 +17,14 @@ type Agent = {
   name: string;
   created_by: string;
   created_at: string;
-  prompt?: string; // add prompt to type to pass it to Conversation
+  prompt?: string;
 };
+
+interface DocumentItem {
+  id: string;
+  name: string;
+  type: string;
+}
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -31,8 +37,17 @@ export default function AgentsPage() {
   const [showNotification, setShowNotification] = useState(false);
   const [selectedVoiceId, setSelectedVoiceId] = useState('');
 
-  // New state for showing conversation modal
+  // Knowledge base
+  const [useKnowledgeBase, setUseKnowledgeBase] = useState(false);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
+
   const [activeAgent, setActiveAgent] = useState<Agent | null>(null);
+
+  useEffect(() => {
+    fetchAgents();
+    fetchDocuments();
+  }, []);
 
   const fetchAgents = async () => {
     try {
@@ -45,9 +60,17 @@ export default function AgentsPage() {
     }
   };
 
-  useEffect(() => {
-    fetchAgents();
-  }, []);
+  const fetchDocuments = async () => {
+    try {
+      const res = await fetch('/api/tools/knowledge-base');
+      if (res.ok) {
+        const data = await res.json();
+        setDocuments(data.documents || []);
+      }
+    } catch (err) {
+      console.error('Error fetching documents:', err);
+    }
+  };
 
   const handleCreate = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -58,19 +81,25 @@ export default function AgentsPage() {
 
     setLoading(true);
     try {
+      const payload: any = {
+        name: agentName,
+        created_by: createdBy,
+        first_message: firstMessage,
+        prompt: systemPrompt,
+        model: 'eleven-multilingual-v1',
+        temperature: 0.7,
+        language: 'en',
+        voice_id: selectedVoiceId
+      };
+
+      if (useKnowledgeBase && selectedDocuments.length > 0) {
+        payload.knowledge_base = { document_ids: selectedDocuments };
+      }
+
       const res = await fetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: agentName,
-          created_by: createdBy,
-          first_message: firstMessage,
-          prompt: systemPrompt,
-          model: 'eleven-multilingual-v1',
-          temperature: 0.7,
-          language: 'en',
-          voice_id: selectedVoiceId
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!res.ok) {
@@ -79,17 +108,15 @@ export default function AgentsPage() {
       }
 
       const newAgent = await res.json();
-
-      // Add prompt to newAgent so we can pass it to conversation
       newAgent.prompt = systemPrompt;
-
-      // Add new agent to list immediately
       setAgents((prev) => [newAgent, ...prev]);
 
       setAgentName('');
       setCreatedBy('');
       setFirstMessage('');
       setSystemPrompt('');
+      setUseKnowledgeBase(false);
+      setSelectedDocuments([]);
       setShowPopup(false);
       setShowNotification(true);
     } catch (error: any) {
@@ -104,151 +131,143 @@ export default function AgentsPage() {
     setCreatedBy('');
     setFirstMessage('');
     setSystemPrompt('');
+    setUseKnowledgeBase(false);
+    setSelectedDocuments([]);
     setShowPopup(false);
   };
 
-  // Open conversation modal for selected agent
-  const openConversation = (agent: Agent) => {
-    setActiveAgent(agent);
-  };
+  const openConversation = (agent: Agent) => setActiveAgent(agent);
+  const closeConversation = () => setActiveAgent(null);
 
-  // Close conversation modal
-  const closeConversation = () => {
-    setActiveAgent(null);
-  };
   const deleteAgent = async (agent_id: string) => {
-    const confirmDelete = window.confirm("Are you sure you want to delete this agent?");
-    if (!confirmDelete) return;
-  
+    if (!window.confirm('Are you sure you want to delete this agent?')) return;
     try {
-      // 1. Delete from Supabase
       const { error: supabaseError } = await supabase
-        .from("agents")
+        .from('agents')
         .delete()
-        .eq("agent_id", agent_id);
-  
+        .eq('agent_id', agent_id);
       if (supabaseError) {
-        console.error("Supabase delete error:", supabaseError);
-        alert("Failed to delete from database.");
+        alert('Failed to delete from database.');
         return;
       }
-  
-      // 2. Delete from ElevenLabs
+
       const elevenLabsRes = await fetch(`https://api.elevenlabs.io/v1/agents/${agent_id}`, {
-        method: "DELETE",
+        method: 'DELETE',
         headers: {
-          "xi-api-key": process.env.ELEVENLABS_API_KEY || ''
+          'xi-api-key': process.env.ELEVENLABS_API_KEY || ''
         }
       });
-  
+
       if (!elevenLabsRes.ok) {
-        console.error("ElevenLabs delete failed:", await elevenLabsRes.text());
-        alert("Deleted from DB but failed to delete from ElevenLabs.");
+        alert('Deleted from DB but failed to delete from ElevenLabs.');
       }
-  
-      // 3. Remove from UI state
-      setAgents(prevAgents => prevAgents.filter(agent => agent.agent_id !== agent_id));
-  
-      alert("Agent deleted successfully.");
+
+      setAgents((prev) => prev.filter((a) => a.agent_id !== agent_id));
+      alert('Agent deleted successfully.');
     } catch (err) {
-      console.error("Error deleting agent:", err);
-      alert("Something went wrong.");
+      console.error(err);
+      alert('Something went wrong.');
     }
   };
-  
+
+  const handleDocumentSelection = (docId: string) => {
+    setSelectedDocuments((prev) =>
+      prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId]
+    );
+  };
+
   return (
-    <div className="min-h-screen p-6 bg-black-100">
+    <div className="min-h-screen p-6 bg-black text-white">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Agents</h1>
+        <h1 className="text-3xl font-bold">Agents</h1>
         <button
           onClick={() => setShowPopup(true)}
-          className="bg-gradient-to-r from-purple-400 to-pink-400 text-white px-4 py-2 rounded hover:bg-blue-700"
+          className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-5 py-2 rounded-full shadow-lg hover:scale-105 transition"
         >
           + Create Agent
         </button>
       </div>
 
-      <table className="min-w-full bg-black rounded shadow-md">
-        <thead className="bg-black-200 text-white-500">
-          <tr>
-            <th className="text-left py-2 px-4">Agent Name</th>
-            <th className="text-left py-2 px-4">Created By</th>
-            <th className="text-left py-2 px-4">Created At</th>
-            <th className="text-left py-2 px-4">Action</th> {/* New Action column */}
-            
-          </tr>
-        </thead>
-        <tbody>
-          {agents.map((agent) => (
-            <tr key={agent.agent_id} className="border-t">
-              <td className="py-2 px-4">{agent.name}</td>
-              <td className="py-2 px-4">{agent.created_by}</td>
-              <td className="py-2 px-4">
-              {format(new Date(agent.created_at), 'dd/MM/yyyy HH:mm')}
-              </td>
-              <td className="py-2 px-1">
-  <div className="flex items-center gap-2">
-    <button
-      onClick={() => openConversation(agent)}
-      className="bg-gradient-to-r from-purple-400 to-pink-400 text-white px-3 py-1 rounded hover:bg-green-700"
-    >
-      Chat
-    </button>
-
-    <button
-      onClick={() => deleteAgent(agent.agent_id)}
-      className="px-2 py-1 bg-red-600 hover:bg-red-700 rounded"
-    >
-      🗑
-    </button>
-  </div>
-</td>
-
+      <div className="overflow-x-auto rounded-lg shadow-lg bg-[#0b0b1f] border border-purple-500/30">
+        <table className="min-w-full text-left text-sm">
+          <thead className="bg-purple-900/40 text-gray-200">
+            <tr>
+              <th className="py-3 px-4">Agent Name</th>
+              <th className="py-3 px-4">Created By</th>
+              <th className="py-3 px-4">Created At</th>
+              <th className="py-3 px-4">Action</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {agents.map((agent) => (
+              <tr
+                key={agent.agent_id}
+                className="border-t border-white/10 hover:bg-purple-900/30 transition"
+              >
+                <td className="py-3 px-4">{agent.name}</td>
+                <td className="py-3 px-4">{agent.created_by}</td>
+                <td className="py-3 px-4">
+                  {format(new Date(agent.created_at), 'dd/MM/yyyy HH:mm')}
+                </td>
+                <td className="py-3 px-4">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => openConversation(agent)}
+                      className="p-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 hover:scale-110 shadow-md transition"
+                      title="Chat"
+                    >
+                      <MessageCircle size={18} className="text-white" />
+                    </button>
+                    <button
+                      onClick={() => deleteAgent(agent.agent_id)}
+                      className="p-2 rounded-full bg-gradient-to-r from-[#5a1a3c] to-[#a32d6e] hover:scale-110 hover:shadow-[0_0_10px_#a32d6e] transition"
+                      title="Delete"
+                    >
+                      <Trash2 size={18} className="text-white" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {showPopup && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-md w-full max-w-md">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#0f0f2d] p-6 rounded-lg shadow-lg w-full max-w-md border border-purple-500/30 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">Create New Agent</h2>
-
             <form onSubmit={handleCreate}>
               <input
                 type="text"
                 placeholder="Agent Name"
-                className="w-full border border-gray-300 p-2 mb-3 rounded"
+                className="w-full bg-black/20 border border-purple-500/30 p-2 mb-3 rounded text-white"
                 value={agentName}
                 onChange={(e) => setAgentName(e.target.value)}
               />
-
               <input
                 type="text"
                 placeholder="Created By"
-                className="w-full border border-gray-300 p-2 mb-3 rounded"
+                className="w-full bg-black/20 border border-purple-500/30 p-2 mb-3 rounded text-white"
                 value={createdBy}
                 onChange={(e) => setCreatedBy(e.target.value)}
               />
-
               <textarea
                 placeholder="First Message"
-                className="w-full border border-gray-300 p-2 mb-3 rounded"
+                className="w-full bg-black/20 border border-purple-500/30 p-2 mb-3 rounded text-white"
                 value={firstMessage}
                 onChange={(e) => setFirstMessage(e.target.value)}
               />
-
               <textarea
                 placeholder="System Prompt"
-                className="w-full border border-gray-300 p-2 mb-3 rounded"
+                className="w-full bg-black/20 border border-purple-500/30 p-2 mb-3 rounded text-white"
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
               />
-
               <select
                 value={selectedVoiceId}
                 onChange={(e) => setSelectedVoiceId(e.target.value)}
-                className="w-full border border-gray-300 p-2 mb-3 rounded text-gray-400"
+                className="w-full bg-black/20 border border-purple-500/30 p-2 mb-3 rounded text-gray-300"
                 required
               >
                 <option value="">Select a voice</option>
@@ -259,17 +278,51 @@ export default function AgentsPage() {
                 <option value="MF3mGyEYCl7XYWbV9V6O">Elli</option>
               </select>
 
+              {/* Knowledge Base Option */}
+              <div className="mb-3">
+                <label className="flex items-center gap-2 text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={useKnowledgeBase}
+                    onChange={(e) => setUseKnowledgeBase(e.target.checked)}
+                    className="rounded"
+                  />
+                  Use Knowledge Base
+                </label>
+              </div>
+
+              {useKnowledgeBase && (
+                <div className="mb-3 max-h-32 overflow-y-auto border border-purple-500/30 rounded p-2 bg-black/20">
+                  <p className="text-sm text-gray-400 mb-2">Select documents:</p>
+                  {documents.length === 0 ? (
+                    <p className="text-sm text-gray-500">No documents available</p>
+                  ) : (
+                    documents.map((doc) => (
+                      <label key={doc.id} className="flex items-center gap-2 text-sm mb-1 text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedDocuments.includes(doc.id)}
+                          onChange={() => handleDocumentSelection(doc.id)}
+                          className="rounded"
+                        />
+                        {doc.name} ({doc.type})
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+
               <div className="flex justify-end gap-2 mt-4">
                 <button
                   type="button"
                   onClick={handleDecline}
-                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                  className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white"
                 >
                   Decline
                 </button>
                 <button
                   type="submit"
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:scale-105 px-4 py-2 rounded text-white"
                   disabled={loading}
                 >
                   {loading ? 'Creating...' : 'Create'}
@@ -280,19 +333,22 @@ export default function AgentsPage() {
         </div>
       )}
 
-      {/* Conversation Modal */}
       {activeAgent && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-60 p-4">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 rounded-lg shadow-lg w-full max-w-3xl h-[90vh] relative">
             <button
               onClick={closeConversation}
-              className="absolute top-4 right-4 text-white bg-red-600 px-3 py-1 rounded hover:bg-red-700 z-50"
+              className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center 
+             rounded-full bg-red-500 text-white font-bold hover:bg-red-700"
             >
-              Close
+              ×
             </button>
+            <Conversation
+  agentId={activeAgent.agent_id}
+  agentName={activeAgent.name}
+  onClose={closeConversation}   // 👈 add this
+/>
 
-            {/* Pass agent_id and prompt to Conversation component */}
-            <Conversation agentId={activeAgent.agent_id} agentName={activeAgent.name}/>
           </div>
         </div>
       )}

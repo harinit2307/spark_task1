@@ -1,134 +1,221 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { FaLink, FaFileUpload, FaKeyboard, FaSearch, FaTrash } from 'react-icons/fa';
+import { useState, useEffect } from "react";
 
-interface DocumentItem {
+interface Document {
   id: string;
   name: string;
-  type: string;
+  type?: string;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
 }
 
-export default function KnowledgeBase() {
-  const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+export default function KnowledgeBasePage() {
+  const [mode, setMode] = useState<"text" | "url" | "file">("text");
+  const [text, setText] = useState("");
+  const [url, setUrl] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [selectedDoc, setSelectedDoc] = useState<any | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  // Fetch docs from backend API
   const fetchDocuments = async () => {
-    setLoading(true);
-    const res = await fetch('/api/tools/knowledge-base');
-    const data = await res.json();
-    setDocuments(data.documents || []);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/knowledge-base");
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setDocuments(data);
+      } else if (data?.documents) {
+        setDocuments(data.documents);
+      }
+    } catch {
+      setDocuments([]);
+    }
+  };
+
+  const fetchDocumentDetails = async (id: string) => {
+    try {
+      const res = await fetch(`/api/knowledge-base/${id}`);
+      const data = await res.json();
+      setSelectedDoc(data);
+      setModalOpen(true);
+    } catch {
+      setSelectedDoc(null);
+    }
   };
 
   useEffect(() => {
     fetchDocuments();
   }, []);
 
-  // Add URL/Text/File
-  const addDocument = async (type: string) => {
-    let content: any;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage(null);
 
-    if (type === 'url') {
-      content = prompt("Enter the URL:");
-    } else if (type === 'text') {
-      content = prompt("Enter the text:");
-    } else if (type === 'file') {
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.onchange = async (e: any) => {
-        const file = e.target.files[0];
+    try {
+      let res;
+
+      if (mode === "text") {
+        res = await fetch("/api/knowledge-base", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+      } else if (mode === "url") {
+        res = await fetch("/api/knowledge-base", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+      } else if (mode === "file" && file) {
         const formData = new FormData();
         formData.append("file", file);
-        await fetch('/api/tools/knowledge-base', {
-          method: 'POST',
-          body: formData
+        res = await fetch("/api/knowledge-base", {
+          method: "POST",
+          body: formData,
         });
-        fetchDocuments();
-      };
-      fileInput.click();
-      return;
+      }
+
+      const data = await res?.json();
+      if (data?.success) {
+        setMessage("✅ Knowledge base updated successfully");
+        fetchDocuments(); // refresh list
+        setText("");
+        setUrl("");
+        setFile(null);
+      } else {
+        setMessage(data?.error || "Upload failed");
+      }
+    } catch {
+      setMessage("❌ Upload failed");
+    } finally {
+      setLoading(false);
     }
-
-    if (!content) return;
-
-    await fetch('/api/tools/knowledge-base', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, content })
-    });
-
-    fetchDocuments();
-  };
-
-  // Delete document
-  const deleteDocument = async (id: string) => {
-    await fetch('/api/tools/knowledge-base', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
-    });
-    fetchDocuments();
   };
 
   return (
-    <div className="bg-black min-h-screen text-white p-6">
+    <div className="p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Knowledge Base</h1>
 
-      {/* Buttons */}
-      <div className="flex gap-4 mb-6">
-        <button onClick={() => addDocument('url')} className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-lg hover:bg-gray-700">
-          <FaLink /> Add URL
+      {/* Upload section */}
+      <div className="flex space-x-4 mb-4">
+        <button
+          onClick={() => setMode("text")}
+          className={`px-4 py-2 rounded-md ${mode === "text" ? "bg-blue-600 text-white" : "bg-gray-200"}`}
+        >
+          Text
         </button>
-        <button onClick={() => addDocument('file')} className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-lg hover:bg-gray-700">
-          <FaFileUpload /> Add Files
+        <button
+          onClick={() => setMode("url")}
+          className={`px-4 py-2 rounded-md ${mode === "url" ? "bg-blue-600 text-white" : "bg-gray-200"}`}
+        >
+          URL
         </button>
-        <button onClick={() => addDocument('text')} className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-lg hover:bg-gray-700">
-          <FaKeyboard /> Create Text
+        <button
+          onClick={() => setMode("file")}
+          className={`px-4 py-2 rounded-md ${mode === "file" ? "bg-blue-600 text-white" : "bg-gray-200"}`}
+        >
+          File
         </button>
       </div>
 
-      {/* Search */}
-      <div className="mb-6">
-        <div className="flex items-center bg-gray-900 px-3 py-2 rounded-lg">
-          <FaSearch className="text-gray-400 mr-2" />
-          <input
-            type="text"
-            placeholder="Search Knowledge Base..."
-            className="bg-transparent outline-none text-white w-full"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {mode === "text" && (
+          <textarea
+            className="w-full p-3 border rounded-md"
+            rows={6}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Enter knowledge base text..."
           />
+        )}
+
+        {mode === "url" && (
+          <input
+            type="url"
+            className="w-full p-3 border rounded-md"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="Enter a webpage URL..."
+          />
+        )}
+
+        {mode === "file" && (
+          <input
+            type="file"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            className="w-full"
+          />
+        )}
+
+        <button
+          type="submit"
+          className="px-4 py-2 bg-blue-600 text-white rounded-md"
+          disabled={loading}
+        >
+          {loading ? "Uploading..." : "Upload"}
+        </button>
+      </form>
+
+      {message && (
+        <div className="mt-4 p-3 rounded-md bg-gray-100 border">
+          {message}
         </div>
+      )}
+
+      {/* Documents list */}
+      <h2 className="text-xl font-semibold mt-8 mb-4">Uploaded Documents</h2>
+      <div className="bg-white border rounded-lg shadow">
+        <div className="grid grid-cols-3 font-semibold bg-gray-100 px-4 py-2">
+          <div>Name</div>
+          <div>Created By</div>
+          <div>Last Updated</div>
+        </div>
+        {documents.map((doc) => (
+          <div
+            key={doc.id}
+            className="grid grid-cols-3 px-4 py-2 border-t hover:bg-gray-50 cursor-pointer"
+            onClick={() => fetchDocumentDetails(doc.id)}
+          >
+            <div>{doc.name || "Untitled"}</div>
+            <div>{doc.created_by || "N/A"}</div>
+            <div>
+              {doc.updated_at
+                ? new Date(doc.updated_at).toLocaleString()
+                : "N/A"}
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Document List */}
-      <div className="bg-gray-900 rounded-lg p-6 min-h-[300px]">
-        {loading ? (
-          <p className="text-gray-400">Loading...</p>
-        ) : documents.length === 0 ? (
-          <div className="text-gray-400 text-center">
-            <p className="text-lg font-semibold">No documents found</p>
-            <p className="text-sm">You don't have any documents yet.</p>
+      {/* Modal popup */}
+      {modalOpen && selectedDoc && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white w-2/3 rounded-lg p-6 shadow-lg relative max-h-[80vh] overflow-y-auto">
+            <button
+              onClick={() => setModalOpen(false)}
+              className="absolute top-2 right-2 text-gray-600 hover:text-black"
+            >
+              ✖
+            </button>
+            <h3 className="text-xl font-bold mb-2">{selectedDoc.name}</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              ID: <span className="font-mono">{selectedDoc.id}</span>
+            </p>
+            {selectedDoc.content ? (
+              <pre className="p-3 bg-gray-100 rounded-md text-sm whitespace-pre-wrap">
+                {selectedDoc.content}
+              </pre>
+            ) : (
+              <p className="text-gray-500">No content available</p>
+            )}
           </div>
-        ) : (
-          documents
-            .filter(doc => doc.name.toLowerCase().includes(searchQuery.toLowerCase()))
-            .map(doc => (
-              <div key={doc.id} className="bg-gray-800 p-4 rounded-lg mb-2 flex justify-between items-center">
-                <div>
-                  <span className="block">{doc.name}</span>
-                  <span className="text-gray-400 text-sm">{doc.type}</span>
-                </div>
-                <button onClick={() => deleteDocument(doc.id)} className="text-red-500 hover:text-red-400">
-                  <FaTrash />
-                </button>
-              </div>
-            ))
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

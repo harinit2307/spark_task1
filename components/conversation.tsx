@@ -2,22 +2,21 @@
 
 import { useConversation } from '@elevenlabs/react';
 import { useCallback, useEffect, useState } from 'react';
+import { Bot, X } from 'lucide-react';
 
 type ConversationProps = {
   agentId: string;
-  agentName: string; // new
+  agentName: string;
+  onClose?: () => void; // 👈 NEW: parent close handler
 };
 
-export function Conversation({ agentId, agentName }: ConversationProps) {
+export function Conversation({ agentId, agentName, onClose }: ConversationProps) {
   const conversation = useConversation();
   const [startTime, setStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState('00:00');
   const [isMuted, setIsMuted] = useState(false);
   const [showLangDropdown, setShowLangDropdown] = useState(false);
-  const [selectedLang, setSelectedLang] = useState({
-    code: 'us',
-    label: 'English',
-  });
+  const [selectedLang, setSelectedLang] = useState({ code: 'us', label: 'English' });
 
   const languages = [
     { code: 'us', label: 'English' },
@@ -27,9 +26,9 @@ export function Conversation({ agentId, agentName }: ConversationProps) {
     { code: 'in', label: 'Hindi' },
   ];
 
-  // Timer updater
+  // Timer
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: NodeJS.Timeout | undefined;
     if (conversation.status === 'connected' && startTime) {
       interval = setInterval(() => {
         const seconds = Math.floor((Date.now() - startTime) / 1000);
@@ -38,15 +37,12 @@ export function Conversation({ agentId, agentName }: ConversationProps) {
         setElapsedTime(`${mins}:${secs}`);
       }, 1000);
     }
-    return () => clearInterval(interval);
+    return () => interval && clearInterval(interval);
   }, [conversation.status, startTime]);
 
   const startConversation = useCallback(async () => {
     try {
-      if (!agentId) {
-        console.error('Missing agentId');
-        return;
-      }
+      if (!agentId) return;
       await navigator.mediaDevices.getUserMedia({ audio: true });
       await conversation.startSession({
         agentId,
@@ -69,25 +65,55 @@ export function Conversation({ agentId, agentName }: ConversationProps) {
   const stopConversation = useCallback(async () => {
     try {
       await conversation.endSession();
-      setStartTime(null);
-      setElapsedTime('00:00');
     } catch (err) {
       console.error('Error ending conversation:', err);
+    } finally {
+      setStartTime(null);
+      setElapsedTime('00:00');
     }
   }, [conversation]);
 
+  // 👇 NEW: close handler used by the cross button
+  const handleClose = useCallback(async () => {
+    try {
+      if (conversation.status === 'connected') {
+        await conversation.endSession();
+      }
+    } catch (e) {
+      console.error('Error on close:', e);
+    } finally {
+      setStartTime(null);
+      setElapsedTime('00:00');
+      onClose?.(); // tell parent to hide the modal
+    }
+  }, [conversation, onClose]);
+
   return (
     <div
-      className="flex flex-col justify-center items-center min-h-screen text-white"
-      style={{
-        background: 'linear-gradient(135deg, rgba(17,17,17,1) 0%, rgba(45,6,77,1) 40%, rgba(8,0,255,0.3) 100%)',
-      }}
+      className="flex flex-col justify-center items-center min-h-screen text-white relative"
+      style={{ backgroundColor: '#0f0f0f' }} // solid dark like knowledge base
     >
+      {/* Top-right Cross Button (now closes the modal) */}
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={handleClose}
+        className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center
+                   bg-gradient-to-r from-pink-500 to-purple-500 hover:scale-105 transition"
+      >
+        <X className="text-white w-5 h-5" />
+      </button>
+
+      {/* Title */}
       <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-        Conversational Interface
+        Smart Voice Assistant
       </h1>
+
+      {/* Two-line subheading */}
       <p className="text-gray-300 mb-10 text-center max-w-xl">
-        Real-time AI chatbot for natural and interactive conversations.
+        It naturally and clearly helps you get things done easily.
+        <br />
+        It understands you and responds with a friendly tone.
       </p>
 
       {/* Timer */}
@@ -98,35 +124,33 @@ export function Conversation({ agentId, agentName }: ConversationProps) {
         .outer-circle {
           border-radius: 50%;
           background: radial-gradient(circle at 30% 30%, #a855f7, #7e22ce);
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          display: flex; align-items: center; justify-content: center;
           animation: pulse-glow 2s ease-in-out infinite;
-          box-shadow: 0 0 25px rgba(168, 85, 247, 0.8);
+          box-shadow: 0 0 25px rgba(168,85,247,0.8);
         }
         .inner-blob {
           border-radius: 50%;
-          background: radial-gradient(circle, rgba(255, 255, 255, 0.25), transparent 70%);
-          width: 85%;
-          height: 85%;
+          background: radial-gradient(circle, rgba(255,255,255,0.25), transparent 70%);
+          width: 85%; height: 85%;
         }
         @keyframes pulse-glow {
-          0% { transform: scale(1); box-shadow: 0 0 25px rgba(168, 85, 247, 0.8); }
-          50% { transform: scale(1.08); box-shadow: 0 0 40px rgba(168, 85, 247, 1); }
-          100% { transform: scale(1); box-shadow: 0 0 25px rgba(168, 85, 247, 0.8); }
+          0% { transform: scale(1); box-shadow: 0 0 25px rgba(168,85,247,0.8); }
+          50% { transform: scale(1.08); box-shadow: 0 0 40px rgba(168,85,247,1); }
+          100% { transform: scale(1); box-shadow: 0 0 25px rgba(168,85,247,0.8); }
         }
       `}</style>
 
       <div className="mb-6">
         <div className="outer-circle w-[200px] h-[200px]">
-          <div className="inner-blob"></div>
+          <div className="inner-blob" />
         </div>
       </div>
 
       {/* Agent Info */}
-      <div className="text-center mt-4">
-        <p className="text-xl font-semibold">{agentName}</p>
-        <p className="text-sm text-gray-400">ID: {agentId}</p>
+      <div className="flex items-center gap-3 text-center mt-4">
+      <p className="text-[40px] font-semibold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent drop-shadow-md">
+  {agentName}
+</p>
       </div>
 
       {/* Controls */}
@@ -134,6 +158,7 @@ export function Conversation({ agentId, agentName }: ConversationProps) {
         {/* Language Selector */}
         <div className="relative">
           <button
+            type="button"
             onClick={() => setShowLangDropdown((prev) => !prev)}
             className="w-14 h-14 rounded-full border border-gray-500 overflow-hidden focus:outline-none hover:scale-105 transition shadow-md shadow-black/40"
           >
@@ -149,26 +174,24 @@ export function Conversation({ agentId, agentName }: ConversationProps) {
               {languages.map((lang) => (
                 <button
                   key={lang.code}
+                  type="button"
                   onClick={() => {
                     setSelectedLang(lang);
                     setShowLangDropdown(false);
                   }}
                   className="flex items-center gap-3 px-5 py-3 hover:bg-gray-800 w-full text-left transition"
                 >
-                  <img
-                    src={`https://flagcdn.com/${lang.code}.svg`}
-                    alt={lang.label}
-                    className="w-6 h-6 rounded-full"
-                  />
+                  <img src={`https://flagcdn.com/${lang.code}.svg`} alt={lang.label} className="w-6 h-6 rounded-full" />
                   <span>{lang.label}</span>
                 </button>
               ))}
             </div>
           )}
         </div>
-        
+
         {/* Mic Button */}
         <button
+          type="button"
           onClick={startConversation}
           disabled={conversation.status === 'connected'}
           className="w-14 h-14 rounded-full flex items-center justify-center bg-gray-700 hover:bg-gray-600 shadow-md shadow-black/40 transition disabled:opacity-50"
@@ -181,11 +204,12 @@ export function Conversation({ agentId, agentName }: ConversationProps) {
 
         {/* End Call Button */}
         <button
+          type="button"
           onClick={stopConversation}
           disabled={conversation.status !== 'connected'}
           className="w-14 h-14 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-700 shadow-md shadow-black/40 transition disabled:opacity-50"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
             <path d="M21.3 15.46l-4.6-.92a1 1 0 00-1.04.42l-1.07 1.61a11.94 11.94 0 01-5.18 0l-1.07-1.61a1 1 0 00-1.04-.42l-4.6.92a1 1 0 00-.78 1.09A16.93 16.93 0 0012 19c3.18 0 6.16-.9 8.38-2.45a1 1 0 00-.78-1.09z" />
           </svg>
         </button>
