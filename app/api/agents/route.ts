@@ -1,3 +1,4 @@
+//app/api/agents/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -38,7 +39,9 @@ export async function POST(req: Request) {
     }
 
     const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-    if (!ELEVENLABS_API_KEY) return NextResponse.json({ error: 'Missing ELEVENLABS_API_KEY' }, { status: 500 });
+    if (!ELEVENLABS_API_KEY) {
+      return NextResponse.json({ error: 'Missing ELEVENLABS_API_KEY' }, { status: 500 });
+    }
 
     // Create agent in ElevenLabs
     const payload: any = {
@@ -72,15 +75,16 @@ export async function POST(req: Request) {
 
     const data = JSON.parse(text);
 
-    // ⚡ Important: Store the exact ElevenLabs agent_id in Supabase
+    // ⚡ Store ElevenLabs agent_id and knowledge base usage
     const { error: dbError } = await supabase.from(AGENTS_TABLE).insert([
       {
-        agent_id: data.agent_id,  // store ElevenLabs agent_id
+        agent_id: data.agent_id,
         name: body.name,
         created_by: body.created_by,
         first_message: body.first_message,
         prompt: body.prompt,
         voice_id: body.voice_id,
+        knowledge_base_ids: body.knowledge_base?.document_ids || [], // ✅ store KB usage
         created_at: new Date().toISOString(),
       },
     ]);
@@ -97,6 +101,7 @@ export async function POST(req: Request) {
       first_message: body.first_message,
       prompt: body.prompt,
       voice_id: body.voice_id,
+      knowledge_base_ids: body.knowledge_base?.document_ids || [],
       created_at: new Date().toISOString(),
     });
 
@@ -119,33 +124,23 @@ export async function DELETE(req: Request) {
 
     console.log('Deleting agent in ElevenLabs with id:', agent_id);
 
-    // Delete from ElevenLabs correctly using DELETE method and path param
     const deleteResponse = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agent_id}`, {
       method: 'DELETE',
-      headers: {
-        'xi-api-key': ELEVENLABS_API_KEY,
-      },
+      headers: { 'xi-api-key': ELEVENLABS_API_KEY },
     });
 
     const text = await deleteResponse.text();
     console.log('ElevenLabs delete status:', deleteResponse.status, 'body:', text);
 
     if (!deleteResponse.ok) {
-      console.error('ElevenLabs deletion failed:', text);
-      return NextResponse.json({
-        error: 'Failed to delete agent in ElevenLabs',
-        details: text,
-      }, { status: deleteResponse.status });
+      return NextResponse.json({ error: 'Failed to delete agent in ElevenLabs', details: text }, { status: deleteResponse.status });
     }
 
-    // Delete from Supabase only if ElevenLabs deletion succeeded
+    // Delete from Supabase
     const { error: dbError } = await supabase.from(AGENTS_TABLE).delete().eq('agent_id', agent_id);
     if (dbError) {
       console.error('Supabase deletion error:', dbError);
-      return NextResponse.json({
-        error: 'Agent deleted in ElevenLabs but failed in Supabase',
-        details: dbError.message,
-      }, { status: 500 });
+      return NextResponse.json({ error: 'Agent deleted in ElevenLabs but failed in Supabase', details: dbError.message }, { status: 500 });
     }
 
     return NextResponse.json({ message: 'Agent deleted successfully in both ElevenLabs and Supabase' });

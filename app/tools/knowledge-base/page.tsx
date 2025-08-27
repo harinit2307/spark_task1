@@ -1,19 +1,27 @@
+// app/tools/knowledge-base/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
-interface Document {
+type Document = {
   id: string;
   name: string;
-  type?: string;
-  created_at?: string;
-  updated_at?: string;
-  created_by?: string;
+  type?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  created_by?: string | null;
+};
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleString();
 }
 
 export default function KnowledgeBasePage() {
   const [mode, setMode] = useState<"text" | "url" | "file">("text");
   const [text, setText] = useState("");
+  const [useKnowledgeBase, setUseKnowledgeBase] = useState(false);
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,22 +29,70 @@ export default function KnowledgeBasePage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<any | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [conflictData, setConflictData] = useState<any | null>(null);
+  const [showPopup, setShowPopup] = useState(false);
 
-  const fetchDocuments = async () => {
-    try {
-      const res = await fetch("/api/knowledge-base");
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setDocuments(data);
-      } else if (data?.documents) {
-        setDocuments(data.documents);
-      }
-    } catch {
-      setDocuments([]);
+  // delete confirm modal
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<Document | null>(null);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [agentName, setAgentName] = useState('');
+  const [createdBy, setCreatedBy] = useState('');
+  const [firstMessage, setFirstMessage] = useState('');
+  const [systemPrompt, setSystemPrompt] = useState('');
+  const [selectedVoiceId, setSelectedVoiceId] = useState('');
+
+  const handleEditAgentWithDoc = (doc: Document) => {
+    // Prefill agent popup with this document
+    setShowPopup(true); // Open agent creation modal
+    setUseKnowledgeBase(true); // Enable KB toggle
+    setSelectedDoc(doc.id); // Select this document
+  
+    // Optional: you can also prefill agent name or prompt if you have a mapping
+    const agentUsingDoc = agents.find(a => a.knowledge_base_ids?.includes(doc.id));
+    if (agentUsingDoc) {
+      setAgentName(agentUsingDoc.name);
+      setCreatedBy(agentUsingDoc.created_by);
+      setFirstMessage(agentUsingDoc.first_message || '');
+      setSystemPrompt(agentUsingDoc.prompt || '');
+      setSelectedVoiceId(agentUsingDoc.voice_id || '');
+    } else {
+      // Reset fields if no agent is using this doc
+      setAgentName('');
+      setCreatedBy('');
+      setFirstMessage('');
+      setSystemPrompt('');
+      setSelectedVoiceId('');
     }
   };
 
-  const fetchDocumentDetails = async (id: string) => {
+  async function fetchAgents() {
+    try {
+      const res = await fetch('/api/agents');
+      const data = await res.json();
+      setAgents(Array.isArray(data) ? data : data?.agents || []);
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+      setAgents([]);
+    }
+  }
+
+  useEffect(() => {
+    fetchAgents();
+  }, []);
+
+  async function fetchDocuments() {
+    try {
+      const res = await fetch("/api/knowledge-base");
+      const data = await res.json();
+      const list: Document[] = Array.isArray(data) ? data : data?.documents || [];
+      setDocuments(list);
+    } catch {
+      setDocuments([]);
+    }
+  }
+
+  async function fetchDocumentDetails(id: string) {
     try {
       const res = await fetch(`/api/knowledge-base/${id}`);
       const data = await res.json();
@@ -45,19 +101,44 @@ export default function KnowledgeBasePage() {
     } catch {
       setSelectedDoc(null);
     }
-  };
+  }
+
+  async function confirmDelete() {
+    if (!docToDelete) return;
+    try {
+      const res = await fetch(`/api/knowledge-base/${docToDelete.id}`, { method: "DELETE" });
+      const data = await res.json();
+  
+      if (res.ok) {
+        setMessage("✅ Document deleted");
+        await fetchDocuments();
+      } else if (data?.requires_action) {
+        // 🚨 Doc is in use by agents
+        setConflictData(data); // open special modal
+      } else {
+        setMessage(`❌ Delete failed: ${data?.error || "Unknown error"}`);
+      }
+    } catch (e: any) {
+      setMessage(`❌ Delete failed: ${e?.message || "Unknown error"}`);
+    } finally {
+      setConfirmOpen(false);
+      setDocToDelete(null);
+    }
+  }
+  
+  
 
   useEffect(() => {
     fetchDocuments();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
 
     try {
-      let res;
+      let res: Response | undefined;
 
       if (mode === "text") {
         res = await fetch("/api/knowledge-base", {
@@ -81,52 +162,85 @@ export default function KnowledgeBasePage() {
       }
 
       const data = await res?.json();
-      if (data?.success) {
+      if (res?.ok && data?.success) {
         setMessage("✅ Knowledge base updated successfully");
-        fetchDocuments(); // refresh list
         setText("");
         setUrl("");
         setFile(null);
+        fetchDocuments();
       } else {
-        setMessage(data?.error || "Upload failed");
+        setMessage(`❌ Upload failed: ${data?.error || "Unknown error"}`);
       }
-    } catch {
-      setMessage("❌ Upload failed");
+    } catch (err: any) {
+      setMessage(`❌ Upload failed: ${err?.message || "Unknown error"}`);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Knowledge Base</h1>
+    <div className="p-6 max-w-6xl mx-auto bg-gray-900 min-h-screen text-white">
+      <h1 className="text-3xl font-bold mb-6">Knowledge Base</h1>
 
-      {/* Upload section */}
+      {/* Upload mode toggle */}
       <div className="flex space-x-4 mb-4">
+        {(["text", "url", "file"] as const).map((btn) => (
+          <button
+            key={btn}
+            onClick={() => setMode(btn)}
+            className={`px-4 py-2 rounded-md text-white transition ${
+              mode === btn
+                ? "bg-gradient-to-r from-purple-500 to-pink-500"
+                : "bg-gray-700 hover:bg-gray-600"
+            }`}
+          >
+            {btn.charAt(0).toUpperCase() + btn.slice(1)}
+          </button>
+        ))}
+      </div>
+      {conflictData && (
+  <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-60 z-50">
+    <div className="bg-gray-900 rounded-lg p-6 shadow-lg border border-gray-700 max-w-md w-full">
+      <h3 className="text-lg font-semibold text-white mb-4">
+        Cannot Delete Document
+      </h3>
+      <p className="text-gray-300 mb-4">{conflictData.message}</p>
+
+      <ul className="mb-4 text-gray-400 space-y-2">
+        {conflictData.agents?.map((a: any) => (
+          <li
+            key={a.agent_id}
+            className="flex items-center justify-between bg-gray-800 p-2 rounded"
+          >
+            <span>{a.name || a.agent_id}</span>
+            <button
+              onClick={() => (window.location.href = `/tools/create-agent/${a.agent_id}`)}
+              className="px-3 py-1 text-sm rounded bg-blue-600 hover:bg-blue-500 text-white"
+            >
+              Edit Agent
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <div className="flex justify-end space-x-2">
         <button
-          onClick={() => setMode("text")}
-          className={`px-4 py-2 rounded-md ${mode === "text" ? "bg-blue-600 text-white" : "bg-gray-200"}`}
+          onClick={() => setConflictData(null)}
+          className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600"
         >
-          Text
-        </button>
-        <button
-          onClick={() => setMode("url")}
-          className={`px-4 py-2 rounded-md ${mode === "url" ? "bg-blue-600 text-white" : "bg-gray-200"}`}
-        >
-          URL
-        </button>
-        <button
-          onClick={() => setMode("file")}
-          className={`px-4 py-2 rounded-md ${mode === "file" ? "bg-blue-600 text-white" : "bg-gray-200"}`}
-        >
-          File
+          Close
         </button>
       </div>
+    </div>
+  </div>
+)}
 
+
+      {/* Upload form */}
       <form onSubmit={handleSubmit} className="space-y-4">
         {mode === "text" && (
           <textarea
-            className="w-full p-3 border rounded-md"
+            className="w-full p-3 border rounded-md bg-gray-800 text-white"
             rows={6}
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -137,7 +251,7 @@ export default function KnowledgeBasePage() {
         {mode === "url" && (
           <input
             type="url"
-            className="w-full p-3 border rounded-md"
+            className="w-full p-3 border rounded-md bg-gray-800 text-white"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="Enter a webpage URL..."
@@ -148,71 +262,150 @@ export default function KnowledgeBasePage() {
           <input
             type="file"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="w-full"
+            className="w-full text-white"
           />
         )}
 
         <button
           type="submit"
-          className="px-4 py-2 bg-blue-600 text-white rounded-md"
+          className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-md hover:opacity-90"
           disabled={loading}
         >
-          {loading ? "Uploading..." : "Upload"}
+          {loading
+            ? "Uploading..."
+            : mode === "text"
+            ? "Add Text"
+            : mode === "url"
+            ? "Add URL"
+            : "Add File"}
         </button>
       </form>
 
       {message && (
-        <div className="mt-4 p-3 rounded-md bg-gray-100 border">
+        <div className="mt-4 p-3 rounded-md bg-gray-800 border border-gray-700 text-sm">
           {message}
         </div>
       )}
 
       {/* Documents list */}
       <h2 className="text-xl font-semibold mt-8 mb-4">Uploaded Documents</h2>
-      <div className="bg-black border rounded-lg shadow">
-        <div className="grid grid-cols-3 font-semibold bg-gray-100 px-4 py-2">
+
+      <div className="rounded-lg overflow-hidden shadow-lg border border-gray-700">
+        {/* Table header */}
+        <div className="grid grid-cols-4 font-semibold bg-gradient-to-r from-purple-600 to-purple-800 px-4 py-3">
           <div>Name</div>
           <div>Created By</div>
           <div>Last Updated</div>
+          <div className="text-right pr-2">Actions</div>
         </div>
-        {documents.map((doc) => (
-          <div
-            key={doc.id}
-            className="grid grid-cols-3 px-4 py-2 border-t hover:bg-gray-50 cursor-pointer"
-            onClick={() => fetchDocumentDetails(doc.id)}
-          >
-            <div>{doc.name || "Untitled"}</div>
-            <div>{doc.created_by || "N/A"}</div>
-            <div>
-              {doc.updated_at
-                ? new Date(doc.updated_at).toLocaleString()
-                : "N/A"}
+
+        {/* Rows */}
+        {documents.length === 0 ? (
+          <div className="px-4 py-4 text-gray-400">No documents yet</div>
+        ) : (
+          documents.map((doc) => (
+            <div
+              key={doc.id}
+              className="grid grid-cols-4 px-4 py-3 border-t border-gray-800 hover:bg-purple-900/20 transition"
+            >
+              <button
+                className="text-left truncate hover:underline"
+                onClick={() => fetchDocumentDetails(doc.id)}
+                title={doc.name}
+              >
+                {doc.name || "Untitled"}
+              </button>
+
+              <div>{doc.created_by || "—"}</div>
+
+              <div>
+                {formatDate(doc.updated_at) !== "—"
+                  ? formatDate(doc.updated_at)
+                  : formatDate(doc.created_at)}
+              </div>
+
+              <div className="text-right space-x-2">
+                <button
+                  onClick={() => fetchDocumentDetails(doc.id)}
+                  className="px-2 py-1 text-sm rounded bg-gray-700 hover:bg-gray-600"
+                >
+                  View
+                </button>
+                <button
+                  onClick={() => {
+                    setDocToDelete(doc);
+                    setConfirmOpen(true);
+                  }}
+                  className="px-2 py-1 text-sm rounded bg-red-600 hover:bg-red-500"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
-      {/* Modal popup */}
+      {/* Modal popup for viewing doc */}
       {modalOpen && selectedDoc && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white w-2/3 rounded-lg p-6 shadow-lg relative max-h-[80vh] overflow-y-auto">
-            <button
-              onClick={() => setModalOpen(false)}
-              className="absolute top-2 right-2 text-gray-600 hover:text-black"
-            >
-              ✖
-            </button>
-            <h3 className="text-xl font-bold mb-2">{selectedDoc.name}</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              ID: <span className="font-mono">{selectedDoc.id}</span>
+  <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-60">
+    <div className="bg-gray-900 w-2/3 rounded-lg p-6 shadow-lg relative max-h-[80vh] overflow-y-auto border border-gray-700">
+      <button onClick={() => setModalOpen(false)} className="absolute top-2 right-2 text-gray-400 hover:text-white">
+        ✖
+      </button>
+
+      <h3 className="text-xl font-bold mb-2 text-white">{selectedDoc.name || "Document"}</h3>
+      <p className="text-sm text-gray-400 mb-4">
+        ID: <span className="font-mono">{selectedDoc.id}</span>
+      </p>
+
+      {selectedDoc.content ? (
+        <pre className="p-3 bg-gray-800 rounded-md text-sm whitespace-pre-wrap text-gray-200">
+          {selectedDoc.content}
+        </pre>
+      ) : (
+        <p className="text-gray-500">No content available</p>
+      )}
+
+      {/* Edit button */}
+      <div className="mt-4 flex justify-end gap-2">
+        <button
+          onClick={() => handleEditAgentWithDoc(selectedDoc)}
+          className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-md hover:scale-105"
+        >
+          Edit Agent
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+      {/* Confirm delete modal */}
+      {confirmOpen && docToDelete && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-gray-900 rounded-lg p-6 shadow-lg border border-gray-700 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-white mb-4">
+              Confirm Delete
+            </h3>
+            <p className="text-gray-300 mb-6">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold">{docToDelete.name}</span>?
             </p>
-            {selectedDoc.content ? (
-              <pre className="p-3 bg-gray-100 rounded-md text-sm whitespace-pre-wrap">
-                {selectedDoc.content}
-              </pre>
-            ) : (
-              <p className="text-gray-500">No content available</p>
-            )}
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded bg-red-600 hover:bg-red-500"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

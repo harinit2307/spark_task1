@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import NotificationPopup from '@/components/NotificationPopup';
 import dynamic from 'next/dynamic';
-import { MessageCircle, Trash2 } from 'lucide-react';
+import { MessageCircle, Trash2, Pencil } from 'lucide-react';
 
 const Conversation = dynamic(
   () => import('@/components/conversation').then((mod) => mod.Conversation),
@@ -17,7 +17,9 @@ type Agent = {
   name: string;
   created_by: string;
   created_at: string;
+  first_message?: string;
   prompt?: string;
+  voice_id?: string;
 };
 
 interface DocumentItem {
@@ -29,13 +31,15 @@ interface DocumentItem {
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [showPopup, setShowPopup] = useState(false);
+  const [mode, setMode] = useState<'create' | 'edit'>('create');
+
   const [agentName, setAgentName] = useState('');
   const [createdBy, setCreatedBy] = useState('');
   const [firstMessage, setFirstMessage] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [selectedVoiceId, setSelectedVoiceId] = useState('');
   const [loading, setLoading] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
-  const [selectedVoiceId, setSelectedVoiceId] = useState('');
 
   // Knowledge base
   const [useKnowledgeBase, setUseKnowledgeBase] = useState(false);
@@ -43,6 +47,7 @@ export default function AgentsPage() {
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
 
   const [activeAgent, setActiveAgent] = useState<Agent | null>(null);
+  const [editAgentId, setEditAgentId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAgents();
@@ -62,25 +67,23 @@ export default function AgentsPage() {
 
   const fetchDocuments = async () => {
     try {
-      const res = await fetch('/api/knowledge-base'); // fix path
+      const res = await fetch('/api/knowledge-base');
       if (res.ok) {
         const data = await res.json();
-        // make sure the response is an array
         setDocuments(Array.isArray(data) ? data : data.documents || []);
       }
     } catch (err) {
       console.error('Error fetching documents:', err);
     }
   };
-  
 
+  // ----------------- CREATE -----------------
   const handleCreate = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!agentName || !createdBy || !firstMessage || (!useKnowledgeBase && !systemPrompt)) {
       alert('Please fill in all fields.');
       return;
     }
-    
 
     setLoading(true);
     try {
@@ -98,8 +101,6 @@ export default function AgentsPage() {
       if (useKnowledgeBase && selectedDocuments.length > 0) {
         payload.knowledge_base = { document_ids: selectedDocuments };
       }
-      
-      
 
       const res = await fetch('/api/agents', {
         method: 'POST',
@@ -116,12 +117,7 @@ export default function AgentsPage() {
       newAgent.prompt = systemPrompt;
       setAgents((prev) => [newAgent, ...prev]);
 
-      setAgentName('');
-      setCreatedBy('');
-      setFirstMessage('');
-      setSystemPrompt('');
-      setUseKnowledgeBase(false);
-      setSelectedDocuments([]);
+      resetForm();
       setShowPopup(false);
       setShowNotification(true);
     } catch (error: any) {
@@ -131,18 +127,81 @@ export default function AgentsPage() {
     }
   };
 
-  const handleDecline = () => {
+  // ----------------- UPDATE -----------------
+  const handleUpdate = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editAgentId) return;
+
+    setLoading(true);
+    try {
+      const payload: any = {
+        name: agentName,
+        created_by: createdBy,
+        first_message: firstMessage,
+        prompt: systemPrompt,
+        voice_id: selectedVoiceId
+      };
+
+      if (useKnowledgeBase && selectedDocuments.length > 0) {
+        payload.knowledge_base = { document_ids: selectedDocuments };
+      }
+
+      const res = await fetch(`/api/agents/${editAgentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to update agent');
+      }
+
+      const updatedAgent = await res.json();
+
+      setAgents((prev) =>
+        prev.map((a) => (a.agent_id === editAgentId ? { ...a, ...updatedAgent } : a))
+      );
+
+      resetForm();
+      setShowPopup(false);
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
     setAgentName('');
     setCreatedBy('');
     setFirstMessage('');
     setSystemPrompt('');
+    setSelectedVoiceId('');
     setUseKnowledgeBase(false);
     setSelectedDocuments([]);
+    setEditAgentId(null);
+    setMode('create');
+  };
+
+  const handleDecline = () => {
+    resetForm();
     setShowPopup(false);
   };
 
   const openConversation = (agent: Agent) => setActiveAgent(agent);
   const closeConversation = () => setActiveAgent(null);
+
+  const openEdit = (agent: Agent) => {
+    setAgentName(agent.name);
+    setCreatedBy(agent.created_by);
+    setFirstMessage(agent.first_message || '');
+    setSystemPrompt(agent.prompt || '');
+    setSelectedVoiceId(agent.voice_id || '');
+    setEditAgentId(agent.agent_id);
+    setMode('edit');
+    setShowPopup(true);
+  };
 
   const deleteAgent = async (agent_id: string) => {
     if (!window.confirm('Are you sure you want to delete this agent?')) return;
@@ -186,7 +245,11 @@ export default function AgentsPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Agents</h1>
         <button
-          onClick={() => setShowPopup(true)}
+          onClick={() => {
+            resetForm();
+            setMode('create');
+            setShowPopup(true);
+          }}
           className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-5 py-2 rounded-full shadow-lg hover:scale-105 transition"
         >
           + Create Agent
@@ -224,6 +287,13 @@ export default function AgentsPage() {
                       <MessageCircle size={18} className="text-white" />
                     </button>
                     <button
+                      onClick={() => openEdit(agent)}
+                      className="p-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:scale-110 shadow-md transition"
+                      title="Edit"
+                    >
+                      <Pencil size={18} className="text-white" />
+                    </button>
+                    <button
                       onClick={() => deleteAgent(agent.agent_id)}
                       className="p-2 rounded-full bg-gradient-to-r from-[#5a1a3c] to-[#a32d6e] hover:scale-110 hover:shadow-[0_0_10px_#a32d6e] transition"
                       title="Delete"
@@ -238,11 +308,14 @@ export default function AgentsPage() {
         </table>
       </div>
 
+      {/* Create / Edit Popup */}
       {showPopup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-[#0f0f2d] p-6 rounded-lg shadow-lg w-full max-w-md border border-purple-500/30 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">Create New Agent</h2>
-            <form onSubmit={handleCreate}>
+            <h2 className="text-xl font-bold mb-4">
+              {mode === 'create' ? 'Create New Agent' : 'Edit Agent'}
+            </h2>
+            <form onSubmit={mode === 'create' ? handleCreate : handleUpdate}>
               <input
                 type="text"
                 placeholder="Agent Name"
@@ -250,8 +323,6 @@ export default function AgentsPage() {
                 value={agentName}
                 onChange={(e) => setAgentName(e.target.value)}
               />
-              {/* Conditionally show System Prompt */}
-  
               <input
                 type="text"
                 placeholder="Created By"
@@ -265,18 +336,17 @@ export default function AgentsPage() {
                 value={firstMessage}
                 onChange={(e) => setFirstMessage(e.target.value)}
               />
-              {/* Conditionally show System Prompt */}
-  {!useKnowledgeBase && (
-    <div className="mb-3">
-      <label className="block mb-1 text-sm text-gray-300">System Prompt</label>
-      <textarea
-        className="w-full p-2 rounded bg-black/20 text-gray-100"
-        value={systemPrompt}
-        onChange={(e) => setSystemPrompt(e.target.value)}
-        placeholder="Enter system prompt..."
-      />
-    </div>
-  )}
+              {!useKnowledgeBase && (
+                <div className="mb-3">
+                  <label className="block mb-1 text-sm text-gray-300">System Prompt</label>
+                  <textarea
+                    className="w-full p-2 rounded bg-black/20 text-gray-100"
+                    value={systemPrompt}
+                    onChange={(e) => setSystemPrompt(e.target.value)}
+                    placeholder="Enter system prompt..."
+                  />
+                </div>
+              )}
 
               <select
                 value={selectedVoiceId}
@@ -293,39 +363,41 @@ export default function AgentsPage() {
               </select>
 
               {/* Knowledge Base Option */}
-<div className="mb-3">
-  <label className="flex items-center gap-2 text-gray-300">
-    <input
-      type="checkbox"
-      checked={useKnowledgeBase}
-      onChange={(e) => setUseKnowledgeBase(e.target.checked)}
-      className="rounded"
-    />
-    Use Knowledge Base
-  </label>
-</div>
+              <div className="mb-3">
+                <label className="flex items-center gap-2 text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={useKnowledgeBase}
+                    onChange={(e) => setUseKnowledgeBase(e.target.checked)}
+                    className="rounded"
+                  />
+                  Use Knowledge Base
+                </label>
+              </div>
 
-{useKnowledgeBase && (
-  <div className="mb-3 max-h-32 overflow-y-auto border border-purple-500/30 rounded p-2 bg-black/20">
-    <p className="text-sm text-gray-400 mb-2">Select documents:</p>
-    {documents.length === 0 ? (
-      <p className="text-sm text-gray-500">No documents available</p>
-    ) : (
-      documents.map((doc) => (
-        <label key={doc.id} className="flex items-center gap-2 text-sm mb-1 text-gray-300">
-          <input
-            type="checkbox"
-            checked={selectedDocuments.includes(doc.id)}
-            onChange={() => handleDocumentSelection(doc.id)}
-            className="rounded"
-          />
-          {doc.name} ({doc.type})
-        </label>
-      ))
-    )}
-  </div>
-)}
-
+              {useKnowledgeBase && (
+                <div className="mb-3 max-h-32 overflow-y-auto border border-purple-500/30 rounded p-2 bg-black/20">
+                  <p className="text-sm text-gray-400 mb-2">Select documents:</p>
+                  {documents.length === 0 ? (
+                    <p className="text-sm text-gray-500">No documents available</p>
+                  ) : (
+                    documents.map((doc) => (
+                      <label
+                        key={doc.id}
+                        className="flex items-center gap-2 text-sm mb-1 text-gray-300"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedDocuments.includes(doc.id)}
+                          onChange={() => handleDocumentSelection(doc.id)}
+                          className="rounded"
+                        />
+                        {doc.name} ({doc.type})
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
 
               <div className="flex justify-end gap-2 mt-4">
                 <button
@@ -340,7 +412,7 @@ export default function AgentsPage() {
                   className="bg-gradient-to-r from-purple-500 to-pink-500 hover:scale-105 px-4 py-2 rounded text-white"
                   disabled={loading}
                 >
-                  {loading ? 'Creating...' : 'Create'}
+                  {loading ? (mode === 'create' ? 'Creating...' : 'Updating...') : mode === 'create' ? 'Create' : 'Update'}
                 </button>
               </div>
             </form>
@@ -359,11 +431,10 @@ export default function AgentsPage() {
               ×
             </button>
             <Conversation
-  agentId={activeAgent.agent_id}
-  agentName={activeAgent.name}
-  onClose={closeConversation}   // 👈 add this
-/>
-
+              agentId={activeAgent.agent_id}
+              agentName={activeAgent.name}
+              onClose={closeConversation}
+            />
           </div>
         </div>
       )}
