@@ -22,12 +22,27 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch agents' }, { status: 500 });
     }
 
-    return NextResponse.json({ agents: data || [] });
+    // 🔑 Normalize agents so frontend gets `knowledge_base.document_ids`
+    const agents = (data || []).map((a) => ({
+      agent_id: a.agent_id,
+      name: a.name,
+      created_by: a.created_by,
+      created_at: a.created_at,
+      first_message: a.first_message,
+      prompt: a.prompt,
+      voice_id: a.voice_id,
+      knowledge_base: {
+        document_ids: a.knowledge_base_ids || [], // map DB column → frontend shape
+      },
+    }));
+
+    return NextResponse.json({ agents });
   } catch (err) {
     console.error('Internal GET error:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
+
 
 // ✅ POST: Create a new agent
 export async function POST(req: Request) {

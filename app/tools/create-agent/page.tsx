@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import NotificationPopup from '@/components/NotificationPopup';
 import dynamic from 'next/dynamic';
 import { MessageCircle, Trash2, Pencil } from 'lucide-react';
+import { useRouter, useSearchParams } from "next/navigation";
 
 const Conversation = dynamic(
   () => import('@/components/conversation').then((mod) => mod.Conversation),
@@ -20,7 +21,11 @@ type Agent = {
   first_message?: string;
   prompt?: string;
   voice_id?: string;
+  knowledge_base?: {
+    document_ids: string[];
+  };
 };
+
 
 interface DocumentItem {
   id: string;
@@ -40,6 +45,9 @@ export default function AgentsPage() {
   const [selectedVoiceId, setSelectedVoiceId] = useState('');
   const [loading, setLoading] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
+  const router = useRouter();
+const searchParams = useSearchParams();
+
 
   // Knowledge base
   const [useKnowledgeBase, setUseKnowledgeBase] = useState(false);
@@ -53,6 +61,15 @@ export default function AgentsPage() {
     fetchAgents();
     fetchDocuments();
   }, []);
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (editId && agents.length > 0) {
+      const agent = agents.find((a) => a.agent_id === editId);
+      if (agent) {
+        openEdit(agent);
+      }
+    }
+  }, [searchParams, agents]);
 
   const fetchAgents = async () => {
     try {
@@ -84,6 +101,8 @@ export default function AgentsPage() {
       alert('Please fill in all fields.');
       return;
     }
+    
+    
 
     setLoading(true);
     try {
@@ -195,14 +214,28 @@ export default function AgentsPage() {
   const openEdit = (agent: Agent) => {
     setAgentName(agent.name);
     setCreatedBy(agent.created_by);
-    setFirstMessage(agent.first_message || '');
-    setSystemPrompt(agent.prompt || '');
-    setSelectedVoiceId(agent.voice_id || '');
+    setFirstMessage(agent.first_message || "");
+    setSystemPrompt(agent.prompt || "");
+    setSelectedVoiceId(agent.voice_id || "");
     setEditAgentId(agent.agent_id);
-    setMode('edit');
+  
+    // ✅ Handle knowledge base docs
+    if (agent.knowledge_base && agent.knowledge_base.document_ids?.length > 0) {
+      setUseKnowledgeBase(true);
+      setSelectedDocuments(agent.knowledge_base.document_ids);
+    } else {
+      setUseKnowledgeBase(false);
+      setSelectedDocuments([]);
+    }
+  
+    setMode("edit");
     setShowPopup(true);
+  
+    // ✅ Clean URL so ?edit=id disappears
+    router.replace("/tools/create-agent", { scroll: false });
   };
-
+  
+  
   const deleteAgent = async (agent_id: string) => {
     if (!window.confirm('Are you sure you want to delete this agent?')) return;
     try {

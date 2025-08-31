@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Document = {
   id: string;
@@ -178,6 +179,8 @@ export default function KnowledgeBasePage() {
     }
   }
 
+  const router = useRouter();
+
   return (
     <div className="p-6 max-w-6xl mx-auto bg-gray-900 min-h-screen text-white">
       <h1 className="text-3xl font-bold mb-6">Knowledge Base</h1>
@@ -214,11 +217,11 @@ export default function KnowledgeBasePage() {
           >
             <span>{a.name || a.agent_id}</span>
             <button
-              onClick={() => (window.location.href = `/tools/create-agent/${a.agent_id}`)}
-              className="px-3 py-1 text-sm rounded bg-blue-600 hover:bg-blue-500 text-white"
-            >
-              Edit Agent
-            </button>
+  onClick={() => router.push(`/tools/create-agent?edit=${a.agent_id}`)}
+  className="px-3 py-1 text-sm rounded bg-blue-600 hover:bg-blue-500 text-white"
+>
+  Edit Agent
+</button>
           </li>
         ))}
       </ul>
