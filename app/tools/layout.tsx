@@ -10,7 +10,8 @@ const routes = [
   { label: 'Speech to Text', path: '/tools/speech-to-text' },
   { label: 'Conversation Chat', path: '/tools/convoai' },
   { label: 'Agents', path: '/tools/create-agent' },
-  { label: 'Knowledge Base', path: '/tools/knowledge-base' }
+  { label: 'Knowledge Base', path: '/tools/knowledge-base' },
+  {label : 'Phone Number' , path: '/tools/phone-numbers'}
 ];
 
 export default function ToolLayout({ children }: { children: React.ReactNode }) {

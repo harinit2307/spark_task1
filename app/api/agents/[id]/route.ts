@@ -17,18 +17,18 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const safeKnowledgeBaseIds = body.knowledge_base?.document_ids || [];
 
     const { data, error } = await supabase
-      .from("agents")
-      .update({
-        name: body.name,
-        created_by: body.created_by,
-        first_message: body.first_message,
-        prompt: body.prompt,
-        voice_id: body.voice_id,
-        knowledge_base_ids: safeKnowledgeBaseIds, // ✅ flatten
-      })
-      .eq("agent_id", id)
-      .select()
-      .single();
+  .from("agents")
+  .update({
+    name: body.name,
+    created_by: body.created_by,
+    first_message: body.first_message,
+    prompt: body.prompt,
+    voice_id: body.voice_id,
+    knowledge_base_ids: safeKnowledgeBaseIds,
+  })
+  .eq("agent_id", Number(id)) // convert to number if needed
+  .select()
+  .single();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
