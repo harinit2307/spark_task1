@@ -32,7 +32,7 @@ export async function GET() {
       prompt: a.prompt,
       voice_id: a.voice_id,
       knowledge_base: {
-        document_ids: a.knowledge_base_ids || [], // map DB column → frontend shape
+        document_ids: a.knowledge_base?.document_ids ?? []
       },
     }));
 
@@ -59,22 +59,24 @@ export async function POST(req: Request) {
     }
 
     // Create agent in ElevenLabs
-    const payload: any = {
-      name: body.name,
-      voice: { voice_id: body.voice_id || 'EXAVITQu4vr4xnSDxMaL' },
-      conversation_config: {
-        agent: {
-          first_message: body.first_message,
-          prompt: {
-            prompt: body.prompt,
-            llm: { model: body.model || 'eleven-multilingual-v1', temperature: body.temperature ?? 0.7 }
-          },
-          language: body.language || 'en',
-          ...(body.knowledge_base ? { knowledge_base: { document_ids: body.knowledge_base.document_ids } } : {}),
-        },
-        tts: { audio_format: { format: 'pcm', sample_rate: 16000 } },
+    // ✅ Always include prompt
+const payload: any = {
+  name: body.name,
+  voice: { voice_id: body.voice_id || 'EXAVITQu4vr4xnSDxMaL' },
+  conversation_config: {
+    agent: {
+      first_message: body.first_message,
+      prompt: {
+        prompt: body.prompt, // ✅ always include
+        llm: { model: body.model || 'eleven-multilingual-v1', temperature: body.temperature ?? 0.7 }
       },
-    };
+      language: body.language || 'en',
+      ...(body.knowledge_base ? { knowledge_base: { document_ids: body.knowledge_base.document_ids } } : {}),
+    },
+    tts: { audio_format: { format: 'pcm', sample_rate: 16000 } },
+  },
+};
+
 
     const response = await fetch('https://api.elevenlabs.io/v1/convai/agents/create', {
       method: 'POST',
@@ -99,7 +101,8 @@ export async function POST(req: Request) {
         first_message: body.first_message,
         prompt: body.prompt,
         voice_id: body.voice_id,
-        knowledge_base_ids: body.knowledge_base?.document_ids || [], // ✅ store KB usage
+        knowledge_base_ids: body.knowledge_base?.document_ids ?? [],
+ // ✅ store KB usage
         created_at: new Date().toISOString(),
       },
     ]);

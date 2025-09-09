@@ -1,3 +1,4 @@
+//app/tools/create-agent/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,6 +8,8 @@ import NotificationPopup from '@/components/NotificationPopup';
 import dynamic from 'next/dynamic';
 import { MessageCircle, Trash2, Pencil } from 'lucide-react';
 import { useRouter, useSearchParams } from "next/navigation";
+
+
 
 const Conversation = dynamic(
   () => import('@/components/conversation').then((mod) => mod.Conversation),
@@ -46,6 +49,8 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const router = useRouter();
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
 const searchParams = useSearchParams();
 
 
@@ -178,9 +183,20 @@ const searchParams = useSearchParams();
 
       const updatedAgent = await res.json();
 
-      setAgents((prev) =>
-        prev.map((a) => (a.agent_id === editAgentId ? { ...a, ...updatedAgent } : a))
-      );
+setAgents((prev) =>
+  prev.map((a) =>
+    a.agent_id === editAgentId
+      ? {
+          ...a,
+          ...updatedAgent,
+          knowledge_base: {
+            document_ids: updatedAgent.knowledge_base?.document_ids ?? [],
+          },
+        }
+      : a
+  )
+);
+
 
       resetForm();
       setShowPopup(false);
@@ -211,61 +227,64 @@ const searchParams = useSearchParams();
   const openConversation = (agent: Agent) => setActiveAgent(agent);
   const closeConversation = () => setActiveAgent(null);
 
-  const openEdit = (agent: Agent) => {
-    setAgentName(agent.name);
-    setCreatedBy(agent.created_by);
-    setFirstMessage(agent.first_message || "");
-    setSystemPrompt(agent.prompt || "");
-    setSelectedVoiceId(agent.voice_id || "");
-    setEditAgentId(agent.agent_id);
+  const openEdit = async (agent: Agent) => {
+    try {
+      const res = await fetch(`/api/agents/${agent.agent_id}`);
+      if (!res.ok) throw new Error("Failed to fetch agent details");
+      const freshAgent = await res.json();
   
-    // ✅ Handle knowledge base docs
-    if (agent.knowledge_base && agent.knowledge_base.document_ids?.length > 0) {
-      setUseKnowledgeBase(true);
-      setSelectedDocuments(agent.knowledge_base.document_ids);
-    } else {
-      setUseKnowledgeBase(false);
-      setSelectedDocuments([]);
+      setAgentName(freshAgent.name);
+      setCreatedBy(freshAgent.created_by);
+      setFirstMessage(freshAgent.first_message || "");
+      setSystemPrompt(freshAgent.prompt || "");
+      setSelectedVoiceId(freshAgent.voice_id || "");
+      setEditAgentId(freshAgent.agent_id);
+  
+      if (freshAgent.knowledge_base?.document_ids?.length > 0) {
+        setUseKnowledgeBase(true);
+        setSelectedDocuments(freshAgent.knowledge_base.document_ids);
+      } else {
+        setUseKnowledgeBase(false);
+        setSelectedDocuments([]);
+      }
+  
+      setMode("edit");
+      setShowPopup(true);
+  
+      router.replace("/tools/create-agent", { scroll: false });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load agent details");
     }
-  
-    setMode("edit");
-    setShowPopup(true);
-  
-    // ✅ Clean URL so ?edit=id disappears
-    router.replace("/tools/create-agent", { scroll: false });
   };
+  
   
   
   const deleteAgent = async (agent_id: string) => {
-    if (!window.confirm('Are you sure you want to delete this agent?')) return;
     try {
-      const { error: supabaseError } = await supabase
-        .from('agents')
-        .delete()
-        .eq('agent_id', agent_id);
-      if (supabaseError) {
-        alert('Failed to delete from database.');
+      // Delete from backend (handles both Supabase + ElevenLabs)
+      const res = await fetch(`/api/agents?agent_id=${agent_id}`, {
+        method: "DELETE",
+      });
+  
+      if (!res.ok) {
+        const error = await res.json();
+        alert("Failed to delete agent: " + (error.error || "Unknown error"));
         return;
       }
-
-      const elevenLabsRes = await fetch(`https://api.elevenlabs.io/v1/agents/${agent_id}`, {
-        method: 'DELETE',
-        headers: {
-          'xi-api-key': process.env.ELEVENLABS_API_KEY || ''
-        }
-      });
-
-      if (!elevenLabsRes.ok) {
-        alert('Deleted from DB but failed to delete from ElevenLabs.');
-      }
-
+  
+      // Update UI
       setAgents((prev) => prev.filter((a) => a.agent_id !== agent_id));
-      alert('Agent deleted successfully.');
+      alert("Agent deleted successfully.");
     } catch (err) {
       console.error(err);
-      alert('Something went wrong.');
+      alert("Something went wrong.");
     }
   };
+  
+  
+
+      
 
   const handleDocumentSelection = (docId: string) => {
     setSelectedDocuments((prev) =>
@@ -326,13 +345,42 @@ const searchParams = useSearchParams();
                     >
                       <Pencil size={18} className="text-white" />
                     </button>
+                    {deleteConfirmId && (
+  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <div className="bg-[#0f0f2d] p-6 rounded-lg shadow-lg w-full max-w-md border border-red-500/30">
+      <h2 className="text-lg font-bold mb-4 text-red-400">Confirm Deletion</h2>
+      <p className="text-gray-300 mb-6">
+        Are you sure you want to delete this agent?
+      </p>
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={() => setDeleteConfirmId(null)}
+          className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded text-white"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={async () => {
+            await deleteAgent(deleteConfirmId);
+            setDeleteConfirmId(null);
+          }}
+          className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
                     <button
-                      onClick={() => deleteAgent(agent.agent_id)}
-                      className="p-2 rounded-full bg-gradient-to-r from-[#5a1a3c] to-[#a32d6e] hover:scale-110 hover:shadow-[0_0_10px_#a32d6e] transition"
-                      title="Delete"
-                    >
-                      <Trash2 size={18} className="text-white" />
-                    </button>
+  onClick={() => setDeleteConfirmId(agent.agent_id)}
+  className="p-2 rounded-full bg-gradient-to-r from-[#5a1a3c] to-[#a32d6e] hover:scale-110 hover:shadow-[0_0_10px_#a32d6e] transition"
+  title="Delete"
+>
+  <Trash2 size={18} className="text-white" />
+</button>
+
                   </div>
                 </td>
               </tr>
@@ -369,17 +417,16 @@ const searchParams = useSearchParams();
                 value={firstMessage}
                 onChange={(e) => setFirstMessage(e.target.value)}
               />
-              {!useKnowledgeBase && (
-                <div className="mb-3">
-                  <label className="block mb-1 text-sm text-gray-300">System Prompt</label>
-                  <textarea
-                    className="w-full p-2 rounded bg-black/20 text-gray-100"
-                    value={systemPrompt}
-                    onChange={(e) => setSystemPrompt(e.target.value)}
-                    placeholder="Enter system prompt..."
-                  />
-                </div>
-              )}
+              <div className="mb-3">
+  <label className="block mb-1 text-sm text-gray-300">System Prompt</label>
+  <textarea
+    className="w-full p-2 rounded bg-black/20 text-gray-100"
+    value={systemPrompt}
+    onChange={(e) => setSystemPrompt(e.target.value)}
+    placeholder="Enter system prompt..."
+  />
+</div>
+
 
               <select
                 value={selectedVoiceId}
