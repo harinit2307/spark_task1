@@ -103,44 +103,38 @@ const searchParams = useSearchParams();
   const handleCreate = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!agentName || !createdBy || !firstMessage || (!useKnowledgeBase && !systemPrompt)) {
-      alert('Please fill in all fields.');
+      alert("Please fill in all fields.");
       return;
     }
-    
-    
-
     setLoading(true);
+  
     try {
       const payload: any = {
         name: agentName,
         created_by: createdBy,
         first_message: firstMessage,
         prompt: systemPrompt,
-        model: 'eleven-multilingual-v1',
-        temperature: 0.7,
-        language: 'en',
         voice_id: selectedVoiceId
       };
-
+  
       if (useKnowledgeBase && selectedDocuments.length > 0) {
         payload.knowledge_base = { document_ids: selectedDocuments };
       }
-
-      const res = await fetch('/api/agents', {
-        method: 'POST',
+  
+      const res = await fetch("/api/agents", {
+        method: "POST",
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-
+  
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.error || 'Failed to create agent');
+        throw new Error(error.error || "Failed to create agent");
       }
-
+  
       const newAgent = await res.json();
-      newAgent.prompt = systemPrompt;
       setAgents((prev) => [newAgent, ...prev]);
-
+  
       resetForm();
       setShowPopup(false);
       setShowNotification(true);
@@ -150,9 +144,11 @@ const searchParams = useSearchParams();
       setLoading(false);
     }
   };
+  
 
   // ----------------- UPDATE -----------------
   const handleUpdate = async (e?: React.FormEvent) => {
+    console.log("editAgentId", editAgentId);
     if (e) e.preventDefault();
     if (!editAgentId) return;
 
@@ -160,15 +156,18 @@ const searchParams = useSearchParams();
     try {
       const payload: any = {
         name: agentName,
-        created_by: createdBy,
+        description: systemPrompt,          // 👈 map systemPrompt → description
         first_message: firstMessage,
         prompt: systemPrompt,
-        voice_id: selectedVoiceId
+        voice_id: selectedVoiceId,
+        documentIds: selectedDocuments      // 👈 camelCase, matches backend
       };
+      
 
       if (useKnowledgeBase && selectedDocuments.length > 0) {
-        payload.knowledge_base = { document_ids: selectedDocuments };
+        payload.document_ids = selectedDocuments;
       }
+      
 
       const res = await fetch(`/api/agents/${editAgentId}`, {
         method: 'PUT',

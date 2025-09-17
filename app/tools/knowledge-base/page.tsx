@@ -216,12 +216,73 @@ export default function KnowledgeBasePage() {
             className="flex items-center justify-between bg-gray-800 p-2 rounded"
           >
             <span>{a.name || a.agent_id}</span>
-            <button
-  onClick={() => router.push(`/tools/create-agent?edit=${a.agent_id}`)}
-  className="px-3 py-1 text-sm rounded bg-blue-600 hover:bg-blue-500 text-white"
->
-  Edit Agent
-</button>
+            <div className="flex gap-2">
+              {/* Edit Agent */}
+              <button
+                onClick={() =>
+                  router.push(`/tools/create-agent?edit=${a.agent_id}`)
+                }
+                className="px-3 py-1 text-sm rounded bg-blue-600 hover:bg-blue-500 text-white"
+              >
+                Edit
+              </button>
+
+              {/* Delete Agent */}
+              <button
+                onClick={async () => {
+                  if (
+                    !confirm(`Are you sure you want to delete agent: ${a.name}?`)
+                  )
+                    return;
+
+                  try {
+                    const res = await fetch(
+                      `/api/agents?agent_id=${a.agent_id}`,
+                      { method: "DELETE" }
+                    );
+                    const result = await res.json();
+
+                    if (res.ok) {
+                      alert(`✅ Deleted agent: ${a.name}`);
+                      // Refresh agents in modal
+                      const remaining = conflictData.agents.filter(
+                        (ag: any) => ag.agent_id !== a.agent_id
+                      );
+                      if (remaining.length === 0) {
+                        // If no agents left, retry deleting the document automatically
+                        await fetch(
+                          `/api/knowledge-base/${docToDelete?.id}`,
+                          { method: "DELETE" }
+                        );
+                        await fetchDocuments();
+                        setConflictData(null);
+                        setMessage("✅ Document deleted (after removing agents)");
+                      } else {
+                        setConflictData({
+                          ...conflictData,
+                          agents: remaining,
+                        });
+                      }
+                    } else {
+                      alert(
+                        `❌ Failed to delete ${a.name}: ${
+                          result.error || "Unknown error"
+                        }`
+                      );
+                    }
+                  } catch (err: any) {
+                    alert(
+                      `❌ Error deleting ${a.name}: ${
+                        err.message || "Unknown error"
+                      }`
+                    );
+                  }
+                }}
+                className="px-3 py-1 text-sm rounded bg-red-600 hover:bg-red-500 text-white"
+              >
+                Delete
+              </button>
+            </div>
           </li>
         ))}
       </ul>

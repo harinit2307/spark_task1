@@ -77,12 +77,13 @@ export async function DELETE(
 
     // 3️⃣ Safe to delete from ElevenLabs KB
     const elevenRes = await fetch(
-      `https://api.elevenlabs.io/v1/convai/knowledge-base/${id}`,
+      `https://api.elevenlabs.io/v1/convai/knowledge-base/${id}?force=true`,
       {
         method: "DELETE",
         headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY as string },
       }
     );
+    
 
     if (!elevenRes.ok) {
       const txt = await elevenRes.text();

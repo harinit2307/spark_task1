@@ -11,7 +11,7 @@ const routes = [
   { label: 'Conversation Chat', path: '/tools/convoai' },
   { label: 'Agents', path: '/tools/create-agent' },
   { label: 'Knowledge Base', path: '/tools/knowledge-base' },
-  {label : 'Phone Number' , path: '/tools/phone-numbers'}
+  {label : 'Phone Number' , path: '/tools/call'}
 ];
 
 export default function ToolLayout({ children }: { children: React.ReactNode }) {
