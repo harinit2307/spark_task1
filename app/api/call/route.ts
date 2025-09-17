@@ -21,9 +21,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // Call ElevenLabs Twilio outbound call API
+    // ✅ Correct outbound call request
     const response = await fetch(
-      "https://api.elevenlabs.io/v1/twilio/outbound-call",
+      "https://api.elevenlabs.io/v1/convai/twilio/outbound-call",
       {
         method: "POST",
         headers: {
@@ -32,7 +32,8 @@ export async function POST(req: Request) {
         },
         body: JSON.stringify({
           agent_id,
-          phone_number,
+          agent_phone_number_id: process.env.ELEVENLABS_PHONE_NUMBER_ID, // from ElevenLabs dashboard
+          to_number: phone_number, // user-input number from request body
         }),
       }
     );
