@@ -432,14 +432,7 @@ export default function KnowledgeBasePage() {
       )}
 
       {/* Edit button */}
-      <div className="mt-4 flex justify-end gap-2">
-        <button
-          onClick={() => handleEditAgentWithDoc(selectedDoc)}
-          className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-md hover:scale-105"
-        >
-          Edit Agent
-        </button>
-      </div>
+      
     </div>
   </div>
 )}

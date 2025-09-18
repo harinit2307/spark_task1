@@ -1,4 +1,3 @@
-//app/api/call/route.ts
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -21,34 +20,44 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ Correct outbound call request
-    const response = await fetch(
-      "https://api.elevenlabs.io/v1/convai/twilio/outbound-call",
-      {
-        method: "POST",
-        headers: {
-          "xi-api-key": ELEVENLABS_API_KEY,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          agent_id,
-          agent_phone_number_id: process.env.ELEVENLABS_PHONE_NUMBER_ID, // from ElevenLabs dashboard
-          to_number: phone_number, // user-input number from request body
-        }),
-      }
+    // 📌 Split multiple numbers (comma-separated)
+    const numbers = phone_number
+      .split(",")
+      .map((n: string) => n.trim())
+      .filter((n: string) => n);
+
+    // 📌 Fire calls in parallel
+    const results = await Promise.all(
+      numbers.map(async (num: string) => {
+        const response = await fetch(
+          "https://api.elevenlabs.io/v1/convai/twilio/outbound-call",
+          {
+            method: "POST",
+            headers: {
+              "xi-api-key": ELEVENLABS_API_KEY,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              agent_id,
+              agent_phone_number_id: process.env.ELEVENLABS_PHONE_NUMBER_ID,
+              to_number: num,
+            }),
+          }
+        );
+
+        const text = await response.text();
+        return {
+          number: num,
+          ok: response.ok,
+          data: text ? JSON.parse(text) : {},
+        };
+      })
     );
 
-    const text = await response.text();
-    if (!response.ok) {
-      console.error("ElevenLabs outbound call failed:", text);
-      return NextResponse.json(
-        { error: "Failed to start outbound call", details: text },
-        { status: response.status }
-      );
-    }
-
-    const data = JSON.parse(text);
-    return NextResponse.json({ message: "Call started", data });
+    return NextResponse.json({
+      message: "Calls started",
+      results,
+    });
   } catch (err) {
     console.error("POST /api/call error:", err);
     return NextResponse.json(

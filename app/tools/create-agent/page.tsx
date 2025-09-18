@@ -9,8 +9,6 @@ import dynamic from 'next/dynamic';
 import { MessageCircle, Trash2, Pencil } from 'lucide-react';
 import { useRouter, useSearchParams } from "next/navigation";
 
-
-
 const Conversation = dynamic(
   () => import('@/components/conversation').then((mod) => mod.Conversation),
   { ssr: false }
@@ -28,7 +26,6 @@ type Agent = {
     document_ids: string[];
   };
 };
-
 
 interface DocumentItem {
   id: string;
@@ -51,8 +48,7 @@ export default function AgentsPage() {
   const router = useRouter();
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-const searchParams = useSearchParams();
-
+  const searchParams = useSearchParams();
 
   // Knowledge base
   const [useKnowledgeBase, setUseKnowledgeBase] = useState(false);
@@ -107,7 +103,7 @@ const searchParams = useSearchParams();
       return;
     }
     setLoading(true);
-  
+
     try {
       const payload: any = {
         name: agentName,
@@ -116,25 +112,25 @@ const searchParams = useSearchParams();
         prompt: systemPrompt,
         voice_id: selectedVoiceId
       };
-  
+
       if (useKnowledgeBase && selectedDocuments.length > 0) {
         payload.knowledge_base = { document_ids: selectedDocuments };
       }
-  
+
       const res = await fetch("/api/agents", {
         method: "POST",
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-  
+
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || "Failed to create agent");
       }
-  
+
       const newAgent = await res.json();
       setAgents((prev) => [newAgent, ...prev]);
-  
+
       resetForm();
       setShowPopup(false);
       setShowNotification(true);
@@ -144,7 +140,6 @@ const searchParams = useSearchParams();
       setLoading(false);
     }
   };
-  
 
   // ----------------- UPDATE -----------------
   const handleUpdate = async (e?: React.FormEvent) => {
@@ -156,18 +151,16 @@ const searchParams = useSearchParams();
     try {
       const payload: any = {
         name: agentName,
-        description: systemPrompt,          // 👈 map systemPrompt → description
+        description: systemPrompt,          
         first_message: firstMessage,
         prompt: systemPrompt,
         voice_id: selectedVoiceId,
-        documentIds: selectedDocuments      // 👈 camelCase, matches backend
+        documentIds: selectedDocuments      
       };
-      
 
       if (useKnowledgeBase && selectedDocuments.length > 0) {
         payload.document_ids = selectedDocuments;
       }
-      
 
       const res = await fetch(`/api/agents/${editAgentId}`, {
         method: 'PUT',
@@ -182,20 +175,19 @@ const searchParams = useSearchParams();
 
       const updatedAgent = await res.json();
 
-setAgents((prev) =>
-  prev.map((a) =>
-    a.agent_id === editAgentId
-      ? {
-          ...a,
-          ...updatedAgent,
-          knowledge_base: {
-            document_ids: updatedAgent.knowledge_base?.document_ids ?? [],
-          },
-        }
-      : a
-  )
-);
-
+      setAgents((prev) =>
+        prev.map((a) =>
+          a.agent_id === editAgentId
+            ? {
+                ...a,
+                ...updatedAgent,
+                knowledge_base: {
+                  document_ids: updatedAgent.knowledge_base?.document_ids ?? [],
+                },
+              }
+            : a
+        )
+      );
 
       resetForm();
       setShowPopup(false);
@@ -231,14 +223,14 @@ setAgents((prev) =>
       const res = await fetch(`/api/agents/${agent.agent_id}`);
       if (!res.ok) throw new Error("Failed to fetch agent details");
       const freshAgent = await res.json();
-  
+
       setAgentName(freshAgent.name);
       setCreatedBy(freshAgent.created_by);
       setFirstMessage(freshAgent.first_message || "");
       setSystemPrompt(freshAgent.prompt || "");
       setSelectedVoiceId(freshAgent.voice_id || "");
       setEditAgentId(freshAgent.agent_id);
-  
+
       if (freshAgent.knowledge_base?.document_ids?.length > 0) {
         setUseKnowledgeBase(true);
         setSelectedDocuments(freshAgent.knowledge_base.document_ids);
@@ -246,33 +238,29 @@ setAgents((prev) =>
         setUseKnowledgeBase(false);
         setSelectedDocuments([]);
       }
-  
+
       setMode("edit");
       setShowPopup(true);
-  
+
       router.replace("/tools/create-agent", { scroll: false });
     } catch (err) {
       console.error(err);
       alert("Failed to load agent details");
     }
   };
-  
-  
-  
+
   const deleteAgent = async (agent_id: string) => {
     try {
-      // Delete from backend (handles both Supabase + ElevenLabs)
       const res = await fetch(`/api/agents?agent_id=${agent_id}`, {
         method: "DELETE",
       });
-  
+
       if (!res.ok) {
         const error = await res.json();
         alert("Failed to delete agent: " + (error.error || "Unknown error"));
         return;
       }
-  
-      // Update UI
+
       setAgents((prev) => prev.filter((a) => a.agent_id !== agent_id));
       alert("Agent deleted successfully.");
     } catch (err) {
@@ -280,10 +268,6 @@ setAgents((prev) =>
       alert("Something went wrong.");
     }
   };
-  
-  
-
-      
 
   const handleDocumentSelection = (docId: string) => {
     setSelectedDocuments((prev) =>
@@ -330,6 +314,7 @@ setAgents((prev) =>
                 </td>
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-3">
+                    {/* Chat */}
                     <button
                       onClick={() => openConversation(agent)}
                       className="p-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 hover:scale-110 shadow-md transition"
@@ -337,49 +322,53 @@ setAgents((prev) =>
                     >
                       <MessageCircle size={18} className="text-white" />
                     </button>
+
+                    {/* Edit (fixed color → matches theme) */}
                     <button
                       onClick={() => openEdit(agent)}
-                      className="p-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:scale-110 shadow-md transition"
+                      className="p-2 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 hover:scale-110 shadow-md transition"
                       title="Edit"
                     >
                       <Pencil size={18} className="text-white" />
                     </button>
+
+                    {/* Delete Confirmation */}
                     {deleteConfirmId && (
-  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-    <div className="bg-[#0f0f2d] p-6 rounded-lg shadow-lg w-full max-w-md border border-red-500/30">
-      <h2 className="text-lg font-bold mb-4 text-red-400">Confirm Deletion</h2>
-      <p className="text-gray-300 mb-6">
-        Are you sure you want to delete this agent?
-      </p>
-      <div className="flex justify-end gap-2">
-        <button
-          onClick={() => setDeleteConfirmId(null)}
-          className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded text-white"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={async () => {
-            await deleteAgent(deleteConfirmId);
-            setDeleteConfirmId(null);
-          }}
-          className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white"
-        >
-          Delete
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+                      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                        <div className="bg-[#0f0f2d] p-6 rounded-lg shadow-lg w-full max-w-md border border-red-500/30">
+                          <h2 className="text-lg font-bold mb-4 text-red-400">Confirm Deletion</h2>
+                          <p className="text-gray-300 mb-6">
+                            Are you sure you want to delete this agent?
+                          </p>
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => setDeleteConfirmId(null)}
+                              className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded text-white"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={async () => {
+                                await deleteAgent(deleteConfirmId);
+                                setDeleteConfirmId(null);
+                              }}
+                              className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
+                    {/* Delete Button */}
                     <button
-  onClick={() => setDeleteConfirmId(agent.agent_id)}
-  className="p-2 rounded-full bg-gradient-to-r from-[#5a1a3c] to-[#a32d6e] hover:scale-110 hover:shadow-[0_0_10px_#a32d6e] transition"
-  title="Delete"
->
-  <Trash2 size={18} className="text-white" />
-</button>
-
+                      onClick={() => setDeleteConfirmId(agent.agent_id)}
+                      className="p-2 rounded-full bg-gradient-to-r from-[#5a1a3c] to-[#a32d6e] hover:scale-110 hover:shadow-[0_0_10px_#a32d6e] transition"
+                      title="Delete"
+                    >
+                      <Trash2 size={18} className="text-white" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -417,15 +406,14 @@ setAgents((prev) =>
                 onChange={(e) => setFirstMessage(e.target.value)}
               />
               <div className="mb-3">
-  <label className="block mb-1 text-sm text-gray-300">System Prompt</label>
-  <textarea
-    className="w-full p-2 rounded bg-black/20 text-gray-100"
-    value={systemPrompt}
-    onChange={(e) => setSystemPrompt(e.target.value)}
-    placeholder="Enter system prompt..."
-  />
-</div>
-
+                <label className="block mb-1 text-sm text-gray-300">System Prompt</label>
+                <textarea
+                  className="w-full p-2 rounded bg-black/20 text-gray-100"
+                  value={systemPrompt}
+                  onChange={(e) => setSystemPrompt(e.target.value)}
+                  placeholder="Enter system prompt..."
+                />
+              </div>
 
               <select
                 value={selectedVoiceId}

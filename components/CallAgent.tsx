@@ -1,4 +1,4 @@
-//app/components/CallAgent.tsx
+// app/components/CallAgent.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -21,6 +21,7 @@ export default function CallAgent() {
 
   const startCall = async () => {
     setStatus("📞 Calling...");
+    const numbers = phoneNumber.split(",").map(n => n.trim().replace(/\s+/g, ""));
     const res = await fetch("/api/call", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -36,11 +37,11 @@ export default function CallAgent() {
   };
 
   return (
-    <div className="p-4 border rounded-lg shadow">
-      <h2 className="text-xl font-bold mb-2">Call an Agent</h2>
+    <div className="p-6 border border-gray-700 rounded-lg shadow bg-gray-900">
+      <h2 className="text-xl font-bold mb-4 text-white">Call an Agent</h2>
 
       <select
-        className="border p-2 mb-2 w-full"
+        className="w-full p-2 mb-3 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
         value={agentId}
         onChange={(e) => setAgentId(e.target.value)}
       >
@@ -53,22 +54,29 @@ export default function CallAgent() {
       </select>
 
       <input
-        type="text"
-        className="border p-2 mb-2 w-full"
-        placeholder="Imported Phone Number"
-        value={phoneNumber}
-        onChange={(e) => setPhoneNumber(e.target.value)}
-      />
+  type="text"
+  className="w-full p-2 mb-3 rounded bg-gray-800 text-white border border-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500"
+  placeholder="Enter phone numbers (comma separated)"
+  value={phoneNumber}
+  onChange={(e) => setPhoneNumber(e.target.value)}
+/>
+
 
       <button
-        className="bg-blue-500 text-white px-4 py-2 rounded"
+        className={`w-full px-4 py-2 rounded text-white font-medium transition-all ${
+          !agentId || !phoneNumber
+            ? "bg-gray-600 cursor-not-allowed"
+            : "bg-gradient-to-r from-pink-500 to-purple-600 hover:opacity-90"
+        }`}
         onClick={startCall}
         disabled={!agentId || !phoneNumber}
       >
         Start Call
       </button>
 
-      {status && <p className="mt-2">{status}</p>}
+      {status && (
+        <p className="mt-3 text-sm text-gray-300 text-center">{status}</p>
+      )}
     </div>
   );
 }
