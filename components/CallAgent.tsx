@@ -21,7 +21,9 @@ export default function CallAgent() {
 
   const startCall = async () => {
     setStatus("📞 Calling...");
-    const numbers = phoneNumber.split(",").map(n => n.trim().replace(/\s+/g, ""));
+    const numbers = phoneNumber.split(",").map((n) =>
+      n.trim().replace(/\s+/g, "")
+    );
     const res = await fetch("/api/call", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -37,46 +39,61 @@ export default function CallAgent() {
   };
 
   return (
-    <div className="p-6 border border-gray-700 rounded-lg shadow bg-gray-900">
-      <h2 className="text-xl font-bold mb-4 text-white">Call an Agent</h2>
+    <div className="w-full min-h-screen flex flex-col items-center justify-center px-4 py-10 bg-[#111] text-white">
+      {/* Page Header */}
+      <div className="w-full max-w-3xl text-center mb-10">
+        <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+          Text to Speech
+        </h1>
+        <p className="text-gray-400 mt-2">
+          Generate speech from your text using ElevenLabs-style UI
+        </p>
+      </div>
 
-      <select
-        className="w-full p-2 mb-3 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
-        value={agentId}
-        onChange={(e) => setAgentId(e.target.value)}
-      >
-        <option value="">Select Agent</option>
-        {agents.map((a) => (
-          <option key={a.agent_id} value={a.agent_id}>
-            {a.name}
-          </option>
-        ))}
-      </select>
+      {/* Call Agent Box */}
+      <div className="w-full max-w-3xl p-8 border border-gray-700 rounded-2xl shadow-lg bg-gray-900">
+        <h2 className="text-2xl font-bold mb-6 text-white">📞 Call an Agent</h2>
 
-      <input
-  type="text"
-  className="w-full p-2 mb-3 rounded bg-gray-800 text-white border border-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500"
-  placeholder="Enter phone numbers (comma separated)"
-  value={phoneNumber}
-  onChange={(e) => setPhoneNumber(e.target.value)}
-/>
+        <select
+          className="w-full p-3 mb-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          value={agentId}
+          onChange={(e) => setAgentId(e.target.value)}
+        >
+          <option value="">Select Agent</option>
+          {agents.map((a) => (
+            <option key={a.agent_id} value={a.agent_id}>
+              {a.name}
+            </option>
+          ))}
+        </select>
 
+        <input
+          type="text"
+          className="w-full p-3 mb-4 rounded-lg bg-gray-800 text-white border border-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          placeholder="Enter phone numbers (comma separated)"
+          value={phoneNumber}
+          onChange={(e) => setPhoneNumber(e.target.value)}
+        />
 
-      <button
-        className={`w-full px-4 py-2 rounded text-white font-medium transition-all ${
-          !agentId || !phoneNumber
-            ? "bg-gray-600 cursor-not-allowed"
-            : "bg-gradient-to-r from-pink-500 to-purple-600 hover:opacity-90"
-        }`}
-        onClick={startCall}
-        disabled={!agentId || !phoneNumber}
-      >
-        Start Call
-      </button>
+        <button
+          className={`w-full px-6 py-3 rounded-lg text-white font-medium transition-all 
+            bg-gradient-to-r from-pink-500 to-purple-600 
+            ${
+              !agentId || !phoneNumber
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:opacity-90"
+            }
+          `}
+          onClick={startCall}
+          disabled={!agentId || !phoneNumber}
+        >
+          Start Call
+        </button>
 
-      {status && (
-        <p className="mt-3 text-sm text-gray-300 text-center">{status}</p>
-      )}
+        {status && (
+          <p className="mt-4 text-sm text-gray-300 text-center">{status}</p>
+        )}
+      </div>
     </div>
   );
 }

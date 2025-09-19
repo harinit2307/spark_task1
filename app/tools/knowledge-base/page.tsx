@@ -458,7 +458,7 @@ export default function KnowledgeBasePage() {
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 rounded bg-red-600 hover:bg-red-500"
+                className="grid grid-cols-4 px-4 py-3 border-t border-gray-800 hover:bg-purple-900/20 transition"
               >
                 Delete
               </button>
